@@ -1,0 +1,11 @@
+{
+    "name": "Facilitator",
+    "alias": "facilitator",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Facilitator\\Providers\\FacilitatorServiceProvider"
+    ],
+    "files": []
+}

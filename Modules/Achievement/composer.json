@@ -1,0 +1,12 @@
+{
+    "name": "nwidart/achievement",
+    "description": "Achievement module",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Modules\\Achievement\\": "app/",
+            "Modules\\Achievement\\Database\\Factories\\": "database/factories/",
+            "Modules\\Achievement\\Database\\Seeders\\": "database/seeders/"
+        }
+    }
+}

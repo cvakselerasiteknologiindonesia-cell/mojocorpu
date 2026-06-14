@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/trainingproposal",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\TrainingProposal\\": "app/",
+            "Modules\\TrainingProposal\\Database\\Factories\\": "database/factories/",
+            "Modules\\TrainingProposal\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\TrainingProposal\\Tests\\": "tests/"
+        }
+    }
+}

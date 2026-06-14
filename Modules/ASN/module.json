@@ -1,0 +1,11 @@
+{
+    "name": "ASN",
+    "alias": "asn",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\ASN\\Providers\\ASNServiceProvider"
+    ],
+    "files": []
+}

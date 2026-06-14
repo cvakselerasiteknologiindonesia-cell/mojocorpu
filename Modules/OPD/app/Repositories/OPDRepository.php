@@ -1,0 +1,76 @@
+<?php
+
+namespace Modules\OPD\Repositories;
+
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+use Modules\OPD\Models\OPD;
+
+class OPDRepository
+{
+    public function stats(): array
+    {
+        $total  = OPD::count();
+        $active = OPD::where('is_active', true)->count();
+
+        $totalAsn = DB::table('users')
+            ->whereNotNull('opd_name')
+            ->where('opd_name', '!=', '')
+            ->count();
+
+        $totalUnits = DB::table('users')
+            ->whereNotNull('organization_unit_name')
+            ->where('organization_unit_name', '!=', '')
+            ->distinct('organization_unit_name')
+            ->count('organization_unit_name');
+
+        return [
+            'total'       => $total,
+            'active'      => $active,
+            'inactive'    => $total - $active,
+            'total_asn'   => $totalAsn,
+            'total_units' => $totalUnits,
+        ];
+    }
+
+    public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
+    {
+        return OPD::query()
+            ->select([
+                'opds.*',
+                DB::raw('(SELECT COUNT(*) FROM users WHERE users.opd_name = opds.name) as asn_count'),
+                DB::raw('(SELECT COUNT(DISTINCT users.organization_unit_name) FROM users WHERE users.opd_name = opds.name AND users.organization_unit_name IS NOT NULL AND users.organization_unit_name != \'\') as unit_count'),
+            ])
+            ->when(!empty($filters['search']), fn ($q) => $q->where(fn ($q2) =>
+                $q2->where('opds.name', 'like', '%'.$filters['search'].'%')
+                   ->orWhere('opds.code', 'like', '%'.$filters['search'].'%')
+            ))
+            ->orderBy('opds.name')
+            ->paginate($perPage);
+    }
+
+    public function create(array $data): OPD
+    {
+        return OPD::query()->create($data);
+    }
+
+    public function upsertFromSso(array $records): int
+    {
+        $count = 0;
+        foreach ($records as $rec) {
+            OPD::query()->updateOrCreate(
+                ['uuid' => $rec['uuid']],
+                [
+                    'code'      => $rec['code'] ?? null,
+                    'name'      => $rec['name'],
+                    'address'   => $rec['address'] ?? null,
+                    'phone'     => $rec['phone'] ?? null,
+                    'email'     => $rec['email'] ?? null,
+                    'is_active' => (bool) ($rec['is_active'] ?? true),
+                ]
+            );
+            $count++;
+        }
+        return $count;
+    }
+}

@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/kms",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\KMS\\": "app/",
+            "Modules\\KMS\\Database\\Factories\\": "database/factories/",
+            "Modules\\KMS\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\KMS\\Tests\\": "tests/"
+        }
+    }
+}

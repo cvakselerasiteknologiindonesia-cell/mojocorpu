@@ -1,0 +1,11 @@
+{
+    "name": "DiscussionForum",
+    "alias": "discussionforum",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\DiscussionForum\\Providers\\DiscussionForumServiceProvider"
+    ],
+    "files": []
+}

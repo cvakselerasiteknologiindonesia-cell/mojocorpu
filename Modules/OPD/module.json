@@ -1,0 +1,11 @@
+{
+    "name": "OPD",
+    "alias": "opd",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\OPD\\Providers\\OPDServiceProvider"
+    ],
+    "files": []
+}

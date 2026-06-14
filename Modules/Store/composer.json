@@ -1,0 +1,12 @@
+{
+    "name": "nwidart/store",
+    "description": "Token store module",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Modules\\Store\\": "app/",
+            "Modules\\Store\\Database\\Factories\\": "database/factories/",
+            "Modules\\Store\\Database\\Seeders\\": "database/seeders/"
+        }
+    }
+}

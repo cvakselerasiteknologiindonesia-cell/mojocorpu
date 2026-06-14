@@ -1,0 +1,17 @@
+{
+    "name": "nwidart/wallet",
+    "description": "Token wallet module",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Modules\\Wallet\\": "app/",
+            "Modules\\Wallet\\Database\\Factories\\": "database/factories/",
+            "Modules\\Wallet\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Wallet\\Tests\\": "tests/"
+        }
+    }
+}

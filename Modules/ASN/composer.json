@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/asn",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\ASN\\": "app/",
+            "Modules\\ASN\\Database\\Factories\\": "database/factories/",
+            "Modules\\ASN\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\ASN\\Tests\\": "tests/"
+        }
+    }
+}

@@ -1,0 +1,23 @@
+{
+    "Auth": true,
+    "Dashboard": true,
+    "UserManagement": true,
+    "OPD": true,
+    "ASN": true,
+    "Facilitator": true,
+    "TrainingProposal": true,
+    "TrainingEvent": true,
+    "LMS": true,
+    "KMS": true,
+    "Quiz": true,
+    "Certificate": true,
+    "DiscussionForum": true,
+    "Attendance": true,
+    "Notification": true,
+    "AuditLog": true,
+    "Report": true,
+    "Settings": true,
+    "Wallet": true,
+    "Store": true,
+    "Achievement": true
+}

@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/opd",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\OPD\\": "app/",
+            "Modules\\OPD\\Database\\Factories\\": "database/factories/",
+            "Modules\\OPD\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\OPD\\Tests\\": "tests/"
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "name": "Store",
+    "alias": "store",
+    "description": "Token store for purchasing rewards",
+    "keywords": [],
+    "priority": 0,
+    "providers": ["Modules\\Store\\Providers\\StoreServiceProvider"],
+    "files": []
+}

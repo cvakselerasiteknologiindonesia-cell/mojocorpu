@@ -1,0 +1,9 @@
+{
+    "name": "Achievement",
+    "alias": "achievement",
+    "description": "Badges, achievements, and streak tracking",
+    "keywords": [],
+    "priority": 0,
+    "providers": ["Modules\\Achievement\\Providers\\AchievementServiceProvider"],
+    "files": []
+}

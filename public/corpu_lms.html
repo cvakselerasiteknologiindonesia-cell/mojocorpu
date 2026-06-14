@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Corporate University – BKPSDM Kab. Mojokerto</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;1,14..32,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#ffffff;
+  --fg:#0d0d0d;
+  --fg-2:#4d4d4d;
+  --fg-3:#6b6b6b;
+  --border:#e3e3e3;
+  --surface:#fafafa;
+  --grape:#8a05ff;
+  --sky:#33acff;
+  --emerald:#009e7a;
+  --crimson:#e96770;
+  --gold:rgb(214,127,46);
+  --grad:linear-gradient(to right,rgb(138,5,255),rgb(214,127,46));
+  --grad-hero:linear-gradient(to right,rgb(28,0,55),rgb(42,0,82),rgb(226,166,110));
+  --grad-radiant:linear-gradient(to right,rgb(157,102,255),rgb(251,206,255));
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;font-size:16px;line-height:1.7}
+.gradient-text{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.gradient-text-hero{background:var(--grad-radiant);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.display-heading{font-size:clamp(36px,5vw,64px);font-weight:400;line-height:1.08;letter-spacing:-0.025em}
+.enterprise-card{background:#fff;border:1px solid var(--border);border-radius:0;padding:20px}
+.pill-tag{display:inline-flex;align-items:center;border:1px solid var(--border);padding:2px 10px;border-radius:9999px;font-size:11px;color:var(--fg-3);font-family:'Space Mono',monospace;letter-spacing:.03em;line-height:1.6}
+.primary-button{background:var(--fg);color:#fff;border:none;border-radius:0;padding:10px 20px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:opacity .15s;white-space:nowrap}
+.primary-button:hover{opacity:.82}
+.outline-button{background:transparent;color:var(--fg);border:1px solid var(--border);border-radius:0;padding:10px 20px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color .15s;white-space:nowrap}
+.outline-button:hover{border-color:var(--fg)}
+.mono{font-family:'Space Mono',monospace}
+.page{display:none}.page.active{display:flex;flex-direction:column;min-height:100vh}
+.topbar{position:sticky;top:0;z-index:100;height:56px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:16px}
+.sidebar{width:220px;min-width:220px;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;height:calc(100vh - 56px);position:sticky;top:56px;overflow-y:auto;flex-shrink:0}
+.sb-link{display:flex;align-items:center;gap:9px;padding:8px 14px;font-size:13px;font-weight:500;color:var(--fg-3);border-left:2px solid transparent;cursor:pointer;transition:all .12s;user-select:none}
+.sb-link:hover{color:var(--fg);background:#f0ebff;border-left-color:rgba(138,5,255,.3)}
+.sb-link.active{color:var(--fg);border-left-color:var(--grape);background:#f0ebff}
+.sb-link i{font-size:15px;flex-shrink:0}
+.sb-section{font-size:10px;font-family:'Space Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--fg-3);padding:14px 14px 6px;opacity:.7}
+.app-layout{display:flex;flex:1;min-height:0}
+.main-content{flex:1;overflow-y:auto;padding:28px 32px}
+.section-page{display:none}
+.section-page.active{display:block}
+.kpi-card{background:#fff;border:1px solid var(--border);padding:20px}
+.kpi-n{font-size:30px;font-weight:600;letter-spacing:-0.025em;line-height:1;margin-bottom:4px}
+.kpi-label{font-size:12px;color:var(--fg-3)}
+.kpi-bar{height:2px;background:var(--border);margin-top:12px}
+.kpi-bar-fill{height:100%;background:var(--grad);transition:width .8s ease}
+.prog-bar{height:2px;background:var(--border)}
+.prog-fill{height:100%;background:var(--grad)}
+.dd{position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid var(--border);min-width:210px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.06)}
+.dd-item{display:block;padding:9px 14px;font-size:13px;color:var(--fg);border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.dd-item:last-child{border-bottom:none}
+.dd-item:hover{background:var(--surface)}
+.dd-head{padding:12px 14px;border-bottom:1px solid var(--border);font-size:12px}
+.n-dot{width:7px;height:7px;background:var(--crimson);border-radius:50%;position:absolute;top:6px;right:5px;border:1.5px solid #fff}
+.tab-btn{padding:8px 16px;font-size:13px;font-weight:500;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--fg-3);font-family:inherit;transition:all .15s}
+.tab-btn.active,.tab-btn:hover{color:var(--fg);border-bottom-color:var(--grape)}
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{text-align:left;padding:10px 14px;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);border-bottom:1px solid var(--border);background:var(--surface);font-weight:400}
+.data-table td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--surface)}
+.badge-active{background:#e0f5f0;color:var(--emerald);font-size:10px;font-family:'Space Mono',monospace;padding:2px 7px;letter-spacing:.03em}
+.badge-pending{background:#fff4e0;color:var(--gold);font-size:10px;font-family:'Space Mono',monospace;padding:2px 7px;letter-spacing:.03em}
+.badge-inactive{background:#f5f5f5;color:var(--fg-3);font-size:10px;font-family:'Space Mono',monospace;padding:2px 7px;letter-spacing:.03em}
+.search-input{border:1px solid var(--border);border-radius:0;padding:8px 12px 8px 34px;font-family:inherit;font-size:13px;outline:none;width:100%;transition:border-color .15s;background:#fff;color:var(--fg)}
+.search-input:focus{border-color:var(--fg)}
+.cert-head{background:var(--grad-hero);padding:20px 24px}
+.lp-node{border:1px solid var(--border);background:#fff;padding:16px 20px;display:flex;align-items:center;gap:14px}
+.lp-node.done{border-color:var(--emerald);background:#f0fdf9}
+.lp-node.locked{opacity:.42}
+.kn-item{border-bottom:1px solid var(--border);padding:14px 18px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;transition:background .1s}
+.kn-item:last-child{border-bottom:none}
+.kn-item:hover{background:var(--surface)}
+.grid-art{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+
+/* ── ASSESSMENT REDESIGN ── */
+.exam-header{position:sticky;top:56px;z-index:50;background:#fff;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 28px;height:58px;gap:16px}
+.exam-timer-display{display:flex;align-items:center;justify-content:center;gap:8px;font-family:'Space Mono',monospace;font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--fg)}
+.exam-timer-display i{font-size:14px;color:var(--fg-3);font-weight:400}
+.exam-timer-display.warn{color:var(--crimson)}
+.exam-timer-display.warn i{color:var(--crimson)}
+.exam-body{display:grid;grid-template-columns:1fr 220px;gap:20px;padding:24px 28px;align-items:start}
+.q-panel{background:#fff;border:1px solid var(--border)}
+.q-panel-head{padding:24px 28px 0;display:flex;align-items:center;gap:14px}
+.q-num{font-family:'Space Mono',monospace;font-size:42px;font-weight:700;letter-spacing:-.04em;line-height:1;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.q-type-chip{background:#f0ebff;color:var(--grape);font-size:10px;font-family:'Space Mono',monospace;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px}
+.q-text{padding:20px 28px;font-size:15px;line-height:1.82;color:var(--fg)}
+.q-options{padding:0 28px 24px;display:flex;flex-direction:column;gap:8px}
+.mc-opt{border:1.5px solid var(--border);padding:14px 18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:border-color .15s,background .15s;background:#fff}
+.mc-opt:hover{border-color:var(--fg-2);background:var(--surface)}
+.mc-opt.sel{border-color:var(--grape);background:#f6f0ff}
+.mc-letter{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;flex-shrink:0;transition:all .15s;color:var(--fg-3)}
+.mc-opt:hover .mc-letter{border-color:var(--fg-2);color:var(--fg)}
+.mc-opt.sel .mc-letter{background:var(--grape);color:#fff;border-color:var(--grape)}
+.mc-opt-text{font-size:13.5px;line-height:1.55;flex:1;color:var(--fg)}
+.mc-opt.sel .mc-opt-text{font-weight:500}
+.q-footer{padding:16px 28px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.q-counter{font-family:'Space Mono',monospace;font-size:11px;color:var(--fg-3)}
+.exam-sidebar{display:flex;flex-direction:column;gap:12px;position:sticky;top:calc(56px + 58px + 24px)}
+.exam-sidebar-card{background:#fff;border:1px solid var(--border);padding:14px 16px}
+.exam-sidebar-label{font-size:10px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:var(--fg-3);margin-bottom:10px}
+.exam-progress-track{height:3px;background:var(--border);margin-top:6px}
+.exam-progress-fill{height:100%;background:var(--grad);transition:width .4s ease}
+.exam-q-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.exam-q-btn{border:1px solid var(--border);background:#fff;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:7px 2px;cursor:pointer;transition:all .12s;color:var(--fg-3);text-align:center;line-height:1}
+.exam-q-btn:hover{border-color:var(--fg-3);color:var(--fg)}
+.exam-q-btn.answered{background:var(--fg);color:#fff;border-color:var(--fg)}
+.exam-q-btn.current{background:var(--grape);color:#fff;border-color:var(--grape)}
+
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+@media(max-width:900px){
+  .sidebar{display:none;position:fixed;left:0;top:56px;height:calc(100vh - 56px);z-index:90;width:220px;transform:translateX(-100%);transition:transform .2s}
+  .sidebar.open{display:flex;transform:translateX(0)}
+  .main-content{padding:18px}
+  .hide-mobile{display:none!important}
+  .sec-home-grid{grid-template-columns:1fr!important}
+  .kpi-row{grid-template-columns:repeat(2,1fr)!important}
+  .cat-grid{grid-template-columns:1fr!important}
+  .cert-grid-wrap{grid-template-columns:1fr!important}
+  .assess-grid{grid-template-columns:1fr!important}
+  .comp-grid{grid-template-columns:1fr!important}
+  .exam-body{grid-template-columns:1fr!important}
+  .exam-header{grid-template-columns:1fr auto!important}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="page-login" class="page active" style="flex-direction:row;">
+  <div style="flex:1;background:var(--grad-hero);padding:60px 64px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+    <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;"></div>
+    <div style="position:absolute;top:-120px;left:-80px;width:400px;height:400px;background:radial-gradient(circle,rgba(138,5,255,.25),transparent 70%);pointer-events:none;"></div>
+    <div style="position:relative;z-index:1;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:72px;">
+        <div style="width:30px;height:30px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:#0d0d0d;">CU</div>
+        <span style="color:rgba(255,255,255,.55);font-size:13px;font-weight:500;">CorpU BKPSDM · Kab. Mojokerto</span>
+      </div>
+      <p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:16px;">Corporate University · ASN Learning Platform</p>
+      <h1 class="display-heading" style="color:#fff;margin-bottom:20px;">Platform<br><span class="gradient-text-hero">Pembelajaran<br>ASN Digital</span></h1>
+      <p style="font-size:16px;line-height:1.7;color:rgba(255,255,255,.45);max-width:400px;">Ekosistem pengembangan kompetensi, talenta, dan sertifikasi Aparatur Sipil Negara yang terintegrasi dan modern.</p>
+    </div>
+    <div style="position:relative;z-index:1;margin-top:48px;"><div class="grid-art" style="opacity:.14;" id="hero-art"></div></div>
+    <div style="position:relative;z-index:1;">
+      <div style="display:flex;gap:36px;flex-wrap:wrap;">
+        <div><div style="font-size:22px;font-weight:500;color:#fff;letter-spacing:-.02em;margin-bottom:2px;">3.200+</div><div style="font-size:11px;color:rgba(255,255,255,.35);font-family:'Space Mono',monospace;">ASN Terdaftar</div></div>
+        <div><div style="font-size:22px;font-weight:500;color:#fff;letter-spacing:-.02em;margin-bottom:2px;">124</div><div style="font-size:11px;color:rgba(255,255,255,.35);font-family:'Space Mono',monospace;">Modul Aktif</div></div>
+        <div><div style="font-size:22px;font-weight:500;color:#fff;letter-spacing:-.02em;margin-bottom:2px;">8.950+</div><div style="font-size:11px;color:rgba(255,255,255,.35);font-family:'Space Mono',monospace;">Sertifikat</div></div>
+        <div><div style="font-size:22px;font-weight:500;color:#fff;letter-spacing:-.02em;margin-bottom:2px;">47</div><div style="font-size:11px;color:rgba(255,255,255,.35);font-family:'Space Mono',monospace;">OPD</div></div>
+      </div>
+    </div>
+  </div>
+  <div style="width:480px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:48px 56px;border-left:1px solid var(--border);">
+    <div style="width:100%;">
+      <p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:16px;">BKPSDM Kab. Mojokerto</p>
+      <h2 style="font-size:28px;font-weight:400;letter-spacing:-.02em;margin-bottom:6px;">Selamat Datang</h2>
+      <p style="font-size:14px;color:var(--fg-3);margin-bottom:28px;">Masuk menggunakan akun SSO ASN atau NIP & kata sandi Anda.</p>
+      <button onclick="goPage('page-app')" style="width:100%;display:flex;align-items:center;gap:14px;border:1px solid var(--border);background:#fff;padding:13px 16px;cursor:pointer;margin-bottom:20px;transition:border-color .15s;font-family:inherit;" onmouseover="this.style.borderColor='#0d0d0d'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="width:38px;height:38px;background:var(--fg);display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;flex-shrink:0;"><i class="bi bi-shield-lock-fill"></i></div>
+        <div style="text-align:left;"><div style="font-size:13px;font-weight:500;margin-bottom:1px;">Masuk dengan SSO ASN</div><div style="font-size:11px;color:var(--fg-3);">Terintegrasi dengan SIASN – BKN</div></div>
+        <i class="bi bi-arrow-right" style="margin-left:auto;color:var(--fg-3);"></i>
+      </button>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;"><div style="flex:1;height:1px;background:var(--border);"></div><span style="font-size:12px;color:var(--fg-3);font-family:'Space Mono',monospace;">atau</span><div style="flex:1;height:1px;background:var(--border);"></div></div>
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">Nomor Induk Pegawai (NIP)</label>
+        <div style="position:relative;"><i class="bi bi-person" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--fg-3);font-size:14px;"></i><input type="text" placeholder="18 digit NIP Anda" style="width:100%;padding:10px 12px 10px 34px;border:1px solid var(--border);border-radius:0;font-family:inherit;font-size:14px;outline:none;transition:border-color .15s;" onfocus="this.style.borderColor='#0d0d0d'" onblur="this.style.borderColor='var(--border)'"/></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:500;margin-bottom:5px;">Kata Sandi <a href="#" style="color:var(--grape);font-weight:400;text-decoration:none;font-size:12px;">Lupa kata sandi?</a></label>
+        <div style="position:relative;"><i class="bi bi-lock" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--fg-3);font-size:14px;"></i><input type="password" placeholder="••••••••" style="width:100%;padding:10px 12px 10px 34px;border:1px solid var(--border);border-radius:0;font-family:inherit;font-size:14px;outline:none;transition:border-color .15s;" onfocus="this.style.borderColor='#0d0d0d'" onblur="this.style.borderColor='var(--border)'"/></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-2);margin-bottom:20px;cursor:pointer;"><input type="checkbox" style="width:14px;height:14px;accent-color:var(--fg);"/> Ingat saya selama 30 hari</label>
+      <button onclick="goPage('page-app')" class="primary-button" style="width:100%;justify-content:center;padding:12px;font-size:14px;">Masuk ke Platform <i class="bi bi-arrow-right"></i></button>
+      <p style="text-align:center;font-size:13px;color:var(--fg-3);margin-top:20px;">Belum punya akun? <a href="#" style="color:var(--fg);font-weight:600;text-decoration:none;">Daftar sekarang →</a></p>
+      <div style="margin-top:24px;border:1px solid var(--border);padding:12px 14px;display:flex;gap:8px;background:var(--surface);">
+        <i class="bi bi-info-circle" style="flex-shrink:0;color:var(--fg-3);margin-top:2px;font-size:13px;"></i>
+        <span style="font-size:12px;color:var(--fg-3);line-height:1.6;">Gunakan akun resmi SIASN. Hubungi Admin BKPSDM (ext. 203) jika mengalami kendala akses.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="page-app" class="page" style="flex-direction:column;">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button onclick="toggleSB()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--fg);display:flex;align-items:center;padding:4px;"><i class="bi bi-list"></i></button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:27px;height:27px;background:var(--fg);display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:#fff;">CU</div>
+        <span style="font-size:14px;font-weight:600;">CorpU BKPSDM</span>
+      </div>
+      <span style="color:var(--border);">·</span>
+      <span style="font-size:13px;color:var(--fg-3);" id="breadcrumb">Dashboard</span>
+    </div>
+    <div class="hide-mobile" style="flex:1;max-width:360px;position:relative;">
+      <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--fg-3);font-size:13px;pointer-events:none;"></i>
+      <input type="text" placeholder="Cari kursus, materi, ASN..." class="search-input" style="font-size:13px;"/>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div style="position:relative;">
+        <button onclick="toggleDD('dd-notif')" style="width:34px;height:34px;background:none;border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--fg-2);position:relative;">
+          <i class="bi bi-bell-fill"></i><div class="n-dot"></div>
+        </button>
+        <div class="dd" id="dd-notif" style="display:none;width:300px;">
+          <div class="dd-head"><div style="font-size:11px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);">Notifikasi</div></div>
+          <div class="dd-item"><div style="font-size:12px;font-weight:500;margin-bottom:2px;">CBT Kepemimpinan Tk. II</div><div style="font-size:11px;color:var(--fg-3);">Hari ini · 09:00 WIB · Wajib hadir</div></div>
+          <div class="dd-item"><div style="font-size:12px;font-weight:500;margin-bottom:2px;">Sertifikat baru diterbitkan</div><div style="font-size:11px;color:var(--fg-3);">Transformasi Digital – kemarin</div></div>
+          <div class="dd-item"><div style="font-size:12px;font-weight:500;margin-bottom:2px;">+150 poin wallet diterima</div><div style="font-size:11px;color:var(--fg-3);">Dari penyelesaian modul Etika ASN</div></div>
+          <div class="dd-item" style="text-align:center;color:var(--grape);font-size:12px;">Lihat semua notifikasi →</div>
+        </div>
+      </div>
+      <div style="position:relative;">
+        <button onclick="toggleDD('dd-user')" style="display:flex;align-items:center;gap:7px;background:none;border:none;cursor:pointer;padding:4px;">
+          <div style="width:28px;height:28px;background:var(--fg);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;">BS</div>
+          <span class="hide-mobile" style="font-size:13px;font-weight:500;">Budi S.</span>
+          <i class="bi bi-chevron-down" style="font-size:10px;color:var(--fg-3);"></i>
+        </button>
+        <div class="dd" id="dd-user" style="display:none;">
+          <div class="dd-head"><div style="font-size:13px;font-weight:500;margin-bottom:2px;">Budi Santoso, S.Sos</div><div style="font-size:11px;color:var(--fg-3);font-family:'Space Mono',monospace;">198501152010011005</div></div>
+          <div class="dd-item"><i class="bi bi-person" style="margin-right:6px;"></i>Profil Saya</div>
+          <div class="dd-item"><i class="bi bi-award" style="margin-right:6px;"></i>Sertifikat Saya</div>
+          <div class="dd-item"><i class="bi bi-gear" style="margin-right:6px;"></i>Pengaturan</div>
+          <div class="dd-item" onclick="goPage('page-login')" style="color:var(--crimson);"><i class="bi bi-box-arrow-right" style="margin-right:6px;"></i>Keluar</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div style="padding:10px 8px 0;">
+        <div class="sb-section">Menu Utama</div>
+        <div class="sb-link active" onclick="navTo('sec-home',this,'Dashboard')"><i class="bi bi-grid-fill"></i><span>Dashboard</span></div>
+        <div class="sb-link" onclick="navTo('sec-courses',this,'Pembelajaran Saya')"><i class="bi bi-book-fill"></i><span>Pembelajaran Saya</span><span style="margin-left:auto;background:var(--fg);color:#fff;font-size:9px;font-family:'Space Mono',monospace;padding:1px 5px;border-radius:2px;">3</span></div>
+        <div class="sb-link" onclick="navTo('sec-path',this,'Learning Path')"><i class="bi bi-signpost-fill"></i><span>Learning Path</span></div>
+        <div class="sb-link" onclick="navTo('sec-competency',this,'Kompetensi')"><i class="bi bi-diagram-3-fill"></i><span>Kompetensi</span></div>
+        <div class="sb-link" onclick="navTo('sec-catalog',this,'Katalog Pelatihan')"><i class="bi bi-journal-bookmark-fill"></i><span>Katalog Pelatihan</span></div>
+        <div class="sb-link"><i class="bi bi-camera-video-fill"></i><span>Webinar</span></div>
+        <div class="sb-section">Konten & Ujian</div>
+        <div class="sb-link" onclick="navTo('sec-knowledge',this,'Knowledge Hub')"><i class="bi bi-database-fill"></i><span>Knowledge Hub</span></div>
+        <div class="sb-link" onclick="navTo('sec-assessment',this,'Assessment')"><i class="bi bi-clipboard2-check-fill"></i><span>Assessment</span></div>
+        <div class="sb-link" onclick="navTo('sec-certificate',this,'Sertifikasi')"><i class="bi bi-award-fill"></i><span>Sertifikasi</span></div>
+        <div class="sb-section">Manajemen</div>
+        <div class="sb-link"><i class="bi bi-people-fill"></i><span>Talent Management</span></div>
+        <div class="sb-link" onclick="navTo('sec-admin',this,'Admin Panel')"><i class="bi bi-gear-wide-connected"></i><span>Admin Panel</span></div>
+        <div class="sb-link"><i class="bi bi-bar-chart-line-fill"></i><span>Laporan</span></div>
+        <div class="sb-link"><i class="bi bi-gear-fill"></i><span>Pengaturan</span></div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid var(--border);padding:12px 14px;display:flex;align-items:center;gap:8px;">
+        <div style="width:26px;height:26px;background:var(--fg);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;flex-shrink:0;">BS</div>
+        <div style="min-width:0;flex:1;"><div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Budi Santoso</div><div style="font-size:11px;color:var(--fg-3);">Dinas Kesehatan</div></div>
+        <span onclick="goPage('page-login')" style="color:var(--fg-3);font-size:15px;cursor:pointer;flex-shrink:0;"><i class="bi bi-box-arrow-right"></i></span>
+      </div>
+    </aside>
+
+    <main class="main-content" id="main-area">
+
+      <!-- 1. DASHBOARD -->
+      <div id="sec-home" class="section-page active">
+        <div style="border:1px solid var(--border);padding:28px 32px;margin-bottom:20px;position:relative;overflow:hidden;">
+          <div style="position:absolute;right:0;top:0;bottom:0;width:200px;background:linear-gradient(to left,#f9f9f9,transparent);pointer-events:none;"></div>
+          <div style="position:absolute;top:-40px;right:60px;width:180px;height:180px;border:1px solid var(--border);transform:rotate(15deg);opacity:.3;pointer-events:none;"></div>
+          <p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:8px;">Senin, 7 Mei 2025 · Selamat Pagi</p>
+          <h1 style="font-size:28px;font-weight:400;letter-spacing:-.022em;margin-bottom:8px;position:relative;">Selamat datang kembali, <span class="gradient-text">Budi Santoso</span> 👋</h1>
+          <p style="font-size:14px;color:var(--fg-3);margin-bottom:20px;max-width:520px;position:relative;">Anda memiliki <strong>2 pelatihan aktif</strong> dan <strong>1 ujian CBT terjadwal hari ini</strong>. Tetap semangat mengembangkan kompetensi!</p>
+          <div style="display:flex;gap:9px;position:relative;">
+            <button class="primary-button" style="font-size:13px;" onclick="navTo('sec-assessment',null,'Assessment')"><i class="bi bi-clipboard2-check-fill"></i> Ikuti CBT Hari Ini</button>
+            <button class="outline-button" style="font-size:13px;"><i class="bi bi-book-fill"></i> Lanjut Belajar</button>
+          </div>
+        </div>
+        <div class="kpi-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--border);margin-bottom:20px;">
+          <div class="kpi-card" style="border:none;border-right:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="width:28px;height:28px;background:#f0ebff;display:flex;align-items:center;justify-content:center;color:var(--grape);font-size:13px;"><i class="bi bi-book-fill"></i></div><span style="font-size:11px;color:var(--emerald);font-family:'Space Mono',monospace;">↑ 2 baru</span></div><div class="kpi-n">8</div><div class="kpi-label">Pelatihan Diikuti</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:66%;"></div></div></div>
+          <div class="kpi-card" style="border:none;border-right:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="width:28px;height:28px;background:#fff4e0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:13px;"><i class="bi bi-award-fill"></i></div><span style="font-size:11px;color:var(--emerald);font-family:'Space Mono',monospace;">↑ 1 bulan ini</span></div><div class="kpi-n">5</div><div class="kpi-label">Sertifikat Diperoleh</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:42%;"></div></div></div>
+          <div class="kpi-card" style="border:none;border-right:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="width:28px;height:28px;background:#e0f5f0;display:flex;align-items:center;justify-content:center;color:var(--emerald);font-size:13px;"><i class="bi bi-wallet2"></i></div><span style="font-size:11px;color:var(--emerald);font-family:'Space Mono',monospace;">↑ +150</span></div><div class="kpi-n">1.240</div><div class="kpi-label">Poin Wallet</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:78%;"></div></div></div>
+          <div class="kpi-card" style="border:none;"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;"><div style="width:28px;height:28px;background:#e0f0ff;display:flex;align-items:center;justify-content:center;color:var(--sky);font-size:13px;"><i class="bi bi-graph-up-arrow"></i></div><span style="font-size:11px;color:var(--emerald);font-family:'Space Mono',monospace;">Top 12%</span></div><div class="kpi-n">87</div><div class="kpi-label">Nilai Rata-rata CBT</div><div class="kpi-bar"><div class="kpi-bar-fill" style="width:87%;"></div></div></div>
+        </div>
+        <div class="sec-home-grid" style="display:grid;grid-template-columns:1fr 330px;gap:16px;">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="enterprise-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border);"><h3 style="font-size:14px;font-weight:600;">Aktivitas Belajar (6 Bulan)</h3><div style="display:flex;gap:12px;font-size:11px;color:var(--fg-3);"><span><span style="display:inline-block;width:7px;height:7px;background:var(--grape);margin-right:4px;vertical-align:middle;"></span>Selesai</span><span><span style="display:inline-block;width:7px;height:7px;background:var(--border);margin-right:4px;vertical-align:middle;"></span>Target</span></div></div><canvas id="activityChart" style="max-height:190px;"></canvas></div>
+            <div class="enterprise-card" style="padding:0;"><div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"><h3 style="font-size:14px;font-weight:600;">Pelatihan Aktif</h3><span style="font-size:12px;color:var(--grape);cursor:pointer;" onclick="navTo('sec-courses',null,'Pembelajaran Saya')">Lihat semua →</span></div><div id="active-courses-list"></div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="enterprise-card" style="padding:0;"><div style="padding:13px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"><h3 style="font-size:14px;font-weight:600;">CBT Terjadwal</h3><span style="font-size:12px;color:var(--grape);cursor:pointer;" onclick="navTo('sec-assessment',null,'Assessment')">Lihat →</span></div><div style="padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:11px;"><div style="width:38px;flex-shrink:0;border:1px solid var(--border);padding:5px;text-align:center;"><div style="font-size:18px;font-weight:700;letter-spacing:-.02em;line-height:1;">07</div><div style="font-size:9px;font-family:'Space Mono',monospace;text-transform:uppercase;color:var(--fg-3);">Mei</div></div><div style="flex:1;"><div style="font-size:13px;font-weight:500;margin-bottom:2px;">Kepemimpinan Tk. II</div><div style="font-size:11px;color:var(--fg-3);"><i class="bi bi-clock"></i> 09:00–11:00 WIB</div></div><span class="badge-active">Hari Ini</span></div><div style="padding:13px 18px;display:flex;align-items:center;gap:11px;"><div style="width:38px;flex-shrink:0;border:1px solid var(--border);padding:5px;text-align:center;"><div style="font-size:18px;font-weight:700;letter-spacing:-.02em;line-height:1;">14</div><div style="font-size:9px;font-family:'Space Mono',monospace;text-transform:uppercase;color:var(--fg-3);">Mei</div></div><div style="flex:1;"><div style="font-size:13px;font-weight:500;margin-bottom:2px;">Transformasi Digital</div><div style="font-size:11px;color:var(--fg-3);"><i class="bi bi-clock"></i> 13:00–14:30 WIB</div></div><span class="badge-inactive">7 hari</span></div></div>
+            <div class="enterprise-card" style="padding:0;"><div style="padding:13px 18px;border-bottom:1px solid var(--border);"><h3 style="font-size:14px;font-weight:600;">Pengumuman</h3></div><div style="padding:13px 18px;border-bottom:1px solid var(--border);"><div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--grape);margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase;">Penting</div><div style="font-size:13px;font-weight:500;margin-bottom:3px;">Pembaruan Modul SPBE 2025</div><div style="font-size:12px;color:var(--fg-3);line-height:1.55;">Seluruh ASN wajib menyelesaikan modul onboarding SPBE terbaru sebelum 31 Mei 2025.</div></div><div style="padding:13px 18px;"><div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--fg-3);margin-bottom:4px;letter-spacing:.05em;text-transform:uppercase;">Info</div><div style="font-size:13px;font-weight:500;margin-bottom:3px;">Webinar Kepemimpinan Adaptif</div><div style="font-size:12px;color:var(--fg-3);line-height:1.55;">Bersama Prof. Dr. Bambang H. pada 15 Mei 2025, pkl 09:00 WIB.</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. PEMBELAJARAN -->
+      <div id="sec-courses" class="section-page">
+        <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Pembelajaran</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Pelatihan <span class="gradient-text">Saya</span></h2></div>
+        <div style="border:1px solid var(--border);" id="my-courses-list"></div>
+      </div>
+
+      <!-- 3. CATALOG -->
+      <div id="sec-catalog" class="section-page">
+        <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Katalog Pelatihan</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Temukan <span class="gradient-text">Pelatihan</span></h2></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;" id="cat-tabs"><button class="tab-btn active" onclick="filterCat('all',this)">Semua</button><button class="tab-btn" onclick="filterCat('Kepemimpinan',this)">Kepemimpinan</button><button class="tab-btn" onclick="filterCat('Teknis',this)">Teknis</button><button class="tab-btn" onclick="filterCat('Manajerial',this)">Manajerial</button><button class="tab-btn" onclick="filterCat('Sosio-Kultural',this)">Sosio-Kultural</button></div>
+          <div style="position:relative;width:210px;"><i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--fg-3);font-size:13px;pointer-events:none;"></i><input type="text" placeholder="Cari pelatihan..." class="search-input" oninput="searchCat(this.value)"/></div>
+        </div>
+        <div class="cat-grid" style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);" id="catalog-grid"></div>
+      </div>
+
+      <!-- 4. LEARNING PATH -->
+      <div id="sec-path" class="section-page">
+        <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Learning Path</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Jalur <span class="gradient-text">Kepemimpinan Administrator</span></h2></div>
+        <div style="border:1px solid var(--border);padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:16px;"><div style="font-size:30px;font-weight:700;font-family:'Space Mono',monospace;" class="gradient-text">43%</div><div style="flex:1;"><div style="font-size:13px;font-weight:500;margin-bottom:7px;">Selesaikan 4 modul lagi untuk mendapatkan sertifikat jalur ini</div><div style="height:4px;background:var(--border);"><div style="height:100%;width:43%;background:var(--grad);"></div></div></div><span style="font-size:12px;color:var(--fg-3);">3 / 7 selesai</span></div>
+        <div id="lp-items"></div>
+      </div>
+
+      <!-- 5. COMPETENCY -->
+      <div id="sec-competency" class="section-page">
+        <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Kompetensi</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Dashboard <span class="gradient-text">Kompetensi</span></h2></div>
+        <div class="comp-grid" style="display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start;">
+          <div><div class="enterprise-card" style="text-align:center;margin-bottom:14px;"><p style="font-size:10px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--fg-3);margin-bottom:14px;">Radar Kompetensi</p><canvas id="radarChart" style="max-width:260px;margin:0 auto;display:block;"></canvas></div><div class="enterprise-card"><p style="font-size:10px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);margin-bottom:12px;">Level & Poin</p><div style="font-size:28px;font-weight:700;font-family:'Space Mono',monospace;margin-bottom:4px;" class="gradient-text">Level 4</div><div style="font-size:13px;color:var(--fg-3);">ASN Kompeten · 1.240 poin</div><div style="height:4px;background:var(--border);margin-top:12px;"><div style="height:100%;width:62%;background:var(--grad);"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--fg-3);margin-top:5px;font-family:'Space Mono',monospace;"><span>1.240</span><span>2.000 → Lv5</span></div></div></div>
+          <div class="enterprise-card"><h3 style="font-size:14px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">Matriks Kompetensi</h3><div id="skill-matrix"></div></div>
+        </div>
+      </div>
+
+      <!-- 6. KNOWLEDGE HUB -->
+      <div id="sec-knowledge" class="section-page">
+        <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Knowledge Management</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Knowledge <span class="gradient-text">Hub</span></h2></div>
+        <div style="border:1px solid var(--border);padding:18px;margin-bottom:20px;background:var(--surface);display:flex;gap:9px;"><div style="position:relative;flex:1;"><i class="bi bi-search" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--fg-3);font-size:14px;pointer-events:none;"></i><input type="text" placeholder="Cari artikel, dokumen, regulasi ASN..." style="width:100%;border:1px solid var(--border);border-radius:0;padding:10px 12px 10px 36px;font-family:inherit;font-size:13px;outline:none;background:#fff;" onfocus="this.style.borderColor='#0d0d0d'" onblur="this.style.borderColor='var(--border)'"/></div><button class="primary-button">Cari</button></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);margin-bottom:20px;" id="feat-kn"></div>
+        <div style="border:1px solid var(--border);" id="kn-list"></div>
+      </div>
+
+      <!-- 7. ASSESSMENT -->
+      <div id="sec-assessment" class="section-page">
+        <!-- Intro -->
+        <div id="assess-intro">
+          <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Online Assessment</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Ujian <span class="gradient-text">Kepemimpinan Tingkat II</span></h2></div>
+          <div class="assess-grid" style="display:grid;grid-template-columns:1fr 300px;gap:16px;">
+            <div>
+              <div class="enterprise-card" style="margin-bottom:14px;">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--border);margin-bottom:16px;">
+                  <div style="padding:14px;border-right:1px solid var(--border);text-align:center;"><i class="bi bi-list-ol" style="font-size:20px;color:var(--fg-3);display:block;margin-bottom:5px;"></i><div style="font-size:17px;font-weight:600;letter-spacing:-.02em;">40</div><div style="font-size:11px;color:var(--fg-3);">Soal</div></div>
+                  <div style="padding:14px;border-right:1px solid var(--border);text-align:center;"><i class="bi bi-clock-fill" style="font-size:20px;color:var(--fg-3);display:block;margin-bottom:5px;"></i><div style="font-size:17px;font-weight:600;letter-spacing:-.02em;">120</div><div style="font-size:11px;color:var(--fg-3);">Menit</div></div>
+                  <div style="padding:14px;border-right:1px solid var(--border);text-align:center;"><i class="bi bi-check-circle-fill" style="font-size:20px;color:var(--fg-3);display:block;margin-bottom:5px;"></i><div style="font-size:17px;font-weight:600;letter-spacing:-.02em;">70</div><div style="font-size:11px;color:var(--fg-3);">Nilai Lulus</div></div>
+                  <div style="padding:14px;text-align:center;"><i class="bi bi-arrow-repeat" style="font-size:20px;color:var(--fg-3);display:block;margin-bottom:5px;"></i><div style="font-size:17px;font-weight:600;letter-spacing:-.02em;">1×</div><div style="font-size:11px;color:var(--fg-3);">Percobaan</div></div>
+                </div>
+                <div style="background:#fffbeb;border:1px solid #fcd34d;padding:14px 16px;margin-bottom:16px;"><div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:8px;"><i class="bi bi-exclamation-triangle-fill" style="margin-right:4px;"></i>Peraturan Ujian</div><ul style="list-style:none;display:flex;flex-direction:column;gap:4px;"><li style="font-size:12px;color:#78350f;padding-left:10px;">· Pastikan koneksi internet stabil sebelum memulai</li><li style="font-size:12px;color:#78350f;padding-left:10px;">· Tidak diperkenankan membuka tab atau aplikasi lain</li><li style="font-size:12px;color:#78350f;padding-left:10px;">· Jawaban tersimpan otomatis setiap Anda memilih opsi</li><li style="font-size:12px;color:#78350f;padding-left:10px;">· Ujian berakhir otomatis saat waktu habis</li></ul></div>
+                <button class="primary-button" style="font-size:14px;padding:11px 22px;" onclick="startExam()"><i class="bi bi-play-fill"></i> Mulai Ujian Sekarang</button>
+              </div>
+            </div>
+            <div class="enterprise-card"><p style="font-size:10px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);margin-bottom:13px;">Data Peserta</p><div style="text-align:center;margin-bottom:14px;"><div style="width:50px;height:50px;background:var(--fg);color:#fff;font-family:'Space Mono',monospace;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;">BS</div><div style="font-size:14px;font-weight:500;">Budi Santoso, S.Sos</div><div style="font-size:11px;color:var(--fg-3);font-family:'Space Mono',monospace;">198501152010011005</div></div><div style="border-top:1px solid var(--border);padding-top:10px;"><div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span style="color:var(--fg-3);">OPD</span><strong>Dinas Kesehatan</strong></div><div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;"><span style="color:var(--fg-3);">Tanggal</span><strong>7 Mei 2025</strong></div><div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;"><span style="color:var(--fg-3);">Sesi</span><strong>Pagi (09:00)</strong></div></div></div>
+          </div>
+        </div>
+
+        <!-- Exam active -->
+        <div id="assess-exam" style="display:none;">
+          <!-- Sticky header -->
+          <div class="exam-header">
+            <div style="font-size:13px;font-weight:600;color:var(--fg-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Kepemimpinan Tingkat II</div>
+            <div class="exam-timer-display" id="exam-timer-wrap">
+              <i class="bi bi-clock-fill"></i>
+              <span id="exam-timer">02:00:00</span>
+            </div>
+            <div style="display:flex;justify-content:flex-end;">
+              <button class="primary-button" onclick="finishExam()" style="font-size:12px;padding:8px 16px;">
+                <i class="bi bi-check-circle-fill"></i> Kumpulkan
+              </button>
+            </div>
+          </div>
+
+          <!-- Body -->
+          <div class="exam-body">
+            <!-- Question -->
+            <div id="q-area"></div>
+
+            <!-- Sidebar -->
+            <div class="exam-sidebar">
+              <!-- Progress card -->
+              <div class="exam-sidebar-card">
+                <div class="exam-sidebar-label">Progres Ujian</div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+                  <span style="font-size:12px;color:var(--fg-3);">Terjawab</span>
+                  <span style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;" id="e-progress-text">0 / 5</span>
+                </div>
+                <div class="exam-progress-track">
+                  <div class="exam-progress-fill" id="e-progress-fill" style="width:0%"></div>
+                </div>
+              </div>
+
+              <!-- Navigator card -->
+              <div class="exam-sidebar-card">
+                <div class="exam-sidebar-label">Navigasi Soal</div>
+                <div class="exam-q-grid" id="q-nav"></div>
+                <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+                    <span style="color:var(--fg-3);">Terjawab</span>
+                    <b id="e-answered" style="font-family:'Space Mono',monospace;font-size:13px;">0</b>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+                    <span style="color:var(--fg-3);">Belum dijawab</span>
+                    <b id="e-left" style="font-family:'Space Mono',monospace;font-size:13px;">5</b>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Legend -->
+              <div class="exam-sidebar-card" style="padding:12px 16px;">
+                <div style="display:flex;flex-direction:column;gap:7px;">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--fg-3);">
+                    <div style="width:16px;height:16px;background:var(--grape);flex-shrink:0;"></div> Soal aktif
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--fg-3);">
+                    <div style="width:16px;height:16px;background:var(--fg);flex-shrink:0;"></div> Sudah dijawab
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--fg-3);">
+                    <div style="width:16px;height:16px;background:#fff;border:1px solid var(--border);flex-shrink:0;"></div> Belum dijawab
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit -->
+              <button class="primary-button" onclick="finishExam()" style="width:100%;justify-content:center;font-size:12px;padding:11px;">
+                <i class="bi bi-check-circle-fill"></i> Kumpulkan Jawaban
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result overlay -->
+        <div id="result-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center;">
+          <div style="background:#fff;border:1px solid var(--border);max-width:460px;width:90%;padding:36px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.12);">
+            <div style="font-size:56px;font-weight:700;font-family:'Space Mono',monospace;margin-bottom:8px;" class="gradient-text" id="res-score">0</div>
+            <div style="font-size:20px;font-weight:600;margin-bottom:8px;" id="res-verdict"></div>
+            <p style="font-size:13px;color:var(--fg-3);margin-bottom:24px;line-height:1.6;" id="res-msg"></p>
+            <div style="display:flex;gap:9px;justify-content:center;">
+              <button class="outline-button" onclick="closeResult()">Kembali</button>
+              <button class="primary-button" onclick="navTo('sec-certificate',null,'Sertifikasi');closeResult();">Lihat Sertifikat</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. CERTIFICATE -->
+      <div id="sec-certificate" class="section-page">
+        <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Sertifikasi</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Sertifikat <span class="gradient-text">Saya</span></h2></div>
+        <div class="cert-grid-wrap" style="display:grid;grid-template-columns:repeat(2,1fr);border:1px solid var(--border);" id="cert-grid"></div>
+      </div>
+
+      <!-- 9. ADMIN -->
+      <div id="sec-admin" class="section-page">
+        <div style="margin-bottom:20px;"><p style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);margin-bottom:6px;">Admin Panel</p><h2 style="font-size:28px;font-weight:400;letter-spacing:-.022em;">Manajemen <span class="gradient-text">Platform</span></h2></div>
+        <div style="border-bottom:1px solid var(--border);margin-bottom:20px;display:flex;" id="admin-tab-bar"><button class="tab-btn active" onclick="setAdminTab(this,'at-users')">Pengguna</button><button class="tab-btn" onclick="setAdminTab(this,'at-courses')">Kursus</button><button class="tab-btn" onclick="setAdminTab(this,'at-analytics')">Analitik</button><button class="tab-btn" onclick="setAdminTab(this,'at-log')">Log Aktivitas</button></div>
+        <div id="at-users"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:9px;"><div style="position:relative;width:240px;"><i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--fg-3);font-size:13px;pointer-events:none;"></i><input type="text" placeholder="Cari pengguna..." class="search-input" style="padding-left:30px;"/></div><button class="primary-button" style="font-size:12px;padding:8px 14px;"><i class="bi bi-plus-lg"></i> Tambah Pengguna</button></div><div style="border:1px solid var(--border);overflow:auto;"><table class="data-table" id="admin-user-table"></table></div></div>
+        <div id="at-courses" style="display:none;"><div style="border:1px solid var(--border);overflow:auto;"><table class="data-table" id="admin-course-table"></table></div></div>
+        <div id="at-analytics" style="display:none;"><div style="display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);margin-bottom:18px;"><div style="padding:20px;border-right:1px solid var(--border);"><div style="font-size:10px;color:var(--fg-3);margin-bottom:4px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;">Total ASN</div><div style="font-size:32px;font-weight:600;letter-spacing:-.025em;" class="gradient-text">3.200</div></div><div style="padding:20px;border-right:1px solid var(--border);"><div style="font-size:10px;color:var(--fg-3);margin-bottom:4px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;">Jam Belajar</div><div style="font-size:32px;font-weight:600;letter-spacing:-.025em;" class="gradient-text">12.480</div></div><div style="padding:20px;"><div style="font-size:10px;color:var(--fg-3);margin-bottom:4px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:.06em;">Completion Rate</div><div style="font-size:32px;font-weight:600;letter-spacing:-.025em;" class="gradient-text">73%</div></div></div><div class="enterprise-card"><canvas id="admChart" style="max-height:240px;"></canvas></div></div>
+        <div id="at-log" style="display:none;"><div style="border:1px solid var(--border);" id="activity-log"></div></div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+const COURSES=[
+  {id:1,title:'Kepemimpinan Transformasional Tk. II',inst:'Dr. Andi Wirawan, M.Si',cat:'Kepemimpinan',dur:'30 jam',pct:72,color:'linear-gradient(135deg,rgb(28,0,55),#8a05ff)',icon:'bi-person-workspace'},
+  {id:2,title:'Transformasi Digital Pemerintahan',inst:'Ir. Siti Rahayu, M.T',cat:'Teknis',dur:'40 jam',pct:45,color:'linear-gradient(135deg,rgb(42,0,82),rgb(214,127,46))',icon:'bi-laptop'},
+  {id:3,title:'Manajemen Kinerja & SKP ASN',inst:'Prof. Bambang H, Ph.D',cat:'Manajerial',dur:'35 jam',pct:15,color:'linear-gradient(135deg,rgb(0,40,30),#009e7a)',icon:'bi-graph-up-arrow'},
+  {id:4,title:'Pelayanan Publik Prima',inst:'Dr. Maya Sari, M.AP',cat:'Sosio-Kultural',dur:'25 jam',pct:88,color:'linear-gradient(135deg,rgb(0,30,60),#33acff)',icon:'bi-people-fill'},
+  {id:5,title:'Etika & Integritas ASN BerAKHLAK',inst:'H. Bambang P, S.IP',cat:'Sosio-Kultural',dur:'20 jam',pct:100,color:'linear-gradient(135deg,#111,#444)',icon:'bi-shield-check'},
+  {id:6,title:'Analisis Kebijakan Publik Lanjutan',inst:'Prof. Dr. Rudi S, M.Si',cat:'Teknis',dur:'45 jam',pct:0,color:'linear-gradient(135deg,rgb(60,0,0),#e96770)',icon:'bi-file-earmark-ruled'},
+];
+const QUESTIONS=[
+  {q:'Dalam teori kepemimpinan transformasional Burns (1978), seorang pemimpin mempengaruhi pengikutnya dengan cara...',opts:['Memberikan imbalan material sebagai pertukaran kinerja','Menginspirasi pengikut untuk melampaui kepentingan pribadi demi tujuan organisasi','Menggunakan kekuasaan formal untuk memaksa kepatuhan','Menetapkan aturan ketat dan memberikan sanksi pelanggar'],ans:1},
+  {q:'Komponen "Idealized Influence" dalam kepemimpinan transformasional Bass & Avolio mengacu pada kemampuan pemimpin untuk...',opts:['Memberikan visi yang jelas dan menjadi role model yang dikagumi dan dipercaya pengikutnya','Memberikan imbalan ekstra kepada pegawai berprestasi di atas target','Menerapkan teknologi terbaru dalam proses manajemen organisasi','Membuat keputusan cepat tanpa melibatkan tim'],ans:0},
+  {q:'Dalam PP No. 30 Tahun 2019 tentang Penilaian Kinerja PNS, Sasaran Kinerja Pegawai (SKP) disusun berdasarkan...',opts:['Keinginan pribadi pegawai yang selaras dengan minat karier','Rencana kinerja atasan langsung yang diturunkan dari rencana strategis organisasi','Standar kompetensi jabatan yang ditetapkan oleh BKN secara nasional','Beban kerja sesuai analisis jabatan konsultan eksternal'],ans:1},
+  {q:'Nilai "Harmonis" dalam Core Values ASN BerAKHLAK mengandung makna...',opts:['Menjaga hubungan baik dengan atasan dan menghindari konflik rekan kerja','Saling peduli dan menghargai perbedaan, membangun lingkungan kondusif dan inklusif','Menghindari perbedaan pendapat dalam rapat dan mengutamakan konsensus','Memastikan keseragaman cara berpakaian di lingkungan instansi'],ans:1},
+  {q:'Konsep "Whole-of-Government" dalam reformasi birokrasi bertujuan untuk...',opts:['Menyatukan seluruh kementerian di bawah koordinasi PANRB','Mendorong koordinasi lintas sektoral dan integrasi kebijakan antar instansi pemerintah','Mengurangi jumlah OPD melalui merger dan penggabungan','Mewajibkan rotasi pegawai antar OPD minimal setahun sekali'],ans:1},
+];
+const LP_DATA=[
+  {title:'Orientasi Kepemimpinan ASN',sub:'Modul dasar kepemimpinan transformasional',dur:'4 jam',done:true},
+  {title:'Analisis Organisasi & OPD',sub:'Struktur, budaya, dan dinamika birokrasi',dur:'6 jam',done:true},
+  {title:'Manajemen Kinerja Tim',sub:'SKP, target, dan monitoring pencapaian',dur:'8 jam',done:true},
+  {title:'Komunikasi Kepemimpinan',sub:'Public speaking dan negosiasi strategis',dur:'6 jam',done:false,locked:false},
+  {title:'Inovasi Pelayanan Publik',sub:'Design thinking dan service innovation',dur:'10 jam',done:false,locked:false},
+  {title:'Pengambilan Keputusan Strategis',sub:'Data-driven decision making',dur:'8 jam',done:false,locked:true},
+  {title:'Sertifikasi & Ujian Komprehensif',sub:'Ujian akhir jalur kepemimpinan',dur:'4 jam',done:false,locked:true},
+];
+const KN_DATA=[
+  {title:'Pedoman SKP 2025 – Permenpan RB No. 6',type:'Dokumen',date:'3 hari lalu',icon:'bi-file-earmark-text-fill',bg:'#f0ebff',tc:'#8a05ff',feat:true,views:342},
+  {title:'Transformasi Digital Pemerintah 2024–2029',type:'E-Book',date:'1 minggu lalu',icon:'bi-book-half',bg:'#fff4e0',tc:'rgb(214,127,46)',feat:true,views:218},
+  {title:'Best Practice Pelayanan Prima Disdukcapil',type:'Inovasi',date:'5 hari lalu',icon:'bi-trophy-fill',bg:'#e0f5f0',tc:'#009e7a',feat:false,views:156},
+  {title:'Video: Pengantar Reformasi Birokrasi 2025',type:'Video',date:'2 minggu lalu',icon:'bi-play-btn-fill',bg:'#e0f0ff',tc:'#33acff',feat:false,views:489},
+  {title:'Panduan Implementasi SPBE di Daerah',type:'Panduan',date:'1 bulan lalu',icon:'bi-file-earmark-code-fill',bg:'#f5f5f5',tc:'#0d0d0d',feat:false,views:267},
+  {title:'Artikel: Kepemimpinan Adaptif di Era VUCA',type:'Artikel',date:'3 minggu lalu',icon:'bi-journal-text',bg:'#fde8ee',tc:'#e96770',feat:false,views:193},
+];
+const CERTS=[
+  {title:'Kepemimpinan Transformasional Dasar',date:'15 April 2025',score:92,id:'CERT-2025-001'},
+  {title:'Manajemen Kinerja & SKP ASN',date:'28 Maret 2025',score:88,id:'CERT-2025-002'},
+  {title:'Etika & Integritas ASN BerAKHLAK',date:'10 Februari 2025',score:95,id:'CERT-2025-003'},
+  {title:'Pelayanan Publik Prima',date:'5 Januari 2025',score:79,id:'CERT-2025-004'},
+];
+const USERS=[
+  {name:'Budi Santoso, S.Sos',nip:'198501152010011005',opd:'Dinas Kesehatan',role:'ASN',courses:8,status:'Aktif'},
+  {name:'Sari Rahayu, S.T., M.M',nip:'198709232015042001',opd:'Bappeda',role:'ASN',courses:12,status:'Aktif'},
+  {name:'Ahmad Hidayat, S.IP.',nip:'197603141999031005',opd:'Dinas Pendidikan',role:'Kepala OPD',courses:5,status:'Aktif'},
+  {name:'Dewi Wulandari, S.Pd.',nip:'198012052006042010',opd:'BKPSDM',role:'Widyaiswara',courses:20,status:'Aktif'},
+  {name:'Rizky Pratama, S.Kom',nip:'199204182017031001',opd:'Diskominfo',role:'ASN',courses:15,status:'Aktif'},
+  {name:'Indah Permatasari, S.E.',nip:'199011252019022002',opd:'Dinas Keuangan',role:'ASN',courses:3,status:'Nonaktif'},
+];
+const LOGS=[
+  {user:'Budi Santoso',action:'Menyelesaikan modul Kepemimpinan Adaptif',time:'5 menit lalu',icon:'bi-book-fill',bg:'#f0ebff',tc:'#8a05ff'},
+  {user:'Sari Rahayu',action:'Mengunduh sertifikat Transformasi Digital',time:'12 menit lalu',icon:'bi-award-fill',bg:'#fff4e0',tc:'rgb(214,127,46)'},
+  {user:'Ahmad Hidayat',action:'Login ke platform CorpU',time:'23 menit lalu',icon:'bi-shield-lock-fill',bg:'#e0f5f0',tc:'#009e7a'},
+  {user:'Dewi Wulandari',action:'Mengunggah materi Analisis Kebijakan',time:'1 jam lalu',icon:'bi-upload',bg:'#e0f0ff',tc:'#33acff'},
+  {user:'Rizky Pratama',action:'Menyelesaikan CBT dengan nilai 91',time:'2 jam lalu',icon:'bi-clipboard2-check-fill',bg:'#f0ebff',tc:'#8a05ff'},
+];
+
+function goPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');if(id==='page-app')initApp();}
+let appInited=false;
+function initApp(){if(appInited)return;appInited=true;buildHeroArt();renderActiveCourses();renderMyCourses();renderCatalog();renderLP();renderKnowledge();renderCerts();renderAdminUsers();renderAdminCourses();renderLog();renderSkillMatrix();setTimeout(()=>{initActChart();initRadar();},120);}
+function toggleSB(){document.getElementById('sidebar').classList.toggle('open');}
+function toggleDD(id){const dd=document.getElementById(id);const open=dd.style.display!=='none';document.querySelectorAll('.dd').forEach(d=>d.style.display='none');if(!open)dd.style.display='block';}
+document.addEventListener('click',e=>{if(!e.target.closest('[onclick*="toggleDD"]')&&!e.target.closest('.dd'))document.querySelectorAll('.dd').forEach(d=>d.style.display='none');});
+function navTo(id,link,label){
+  document.querySelectorAll('.section-page').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(label)document.getElementById('breadcrumb').textContent=label;
+  if(link){document.querySelectorAll('.sb-link').forEach(l=>l.classList.remove('active'));link.classList.add('active');}
+  if(id==='sec-competency')setTimeout(initRadar,100);
+  if(id==='sec-admin')setTimeout(initAdmChart,100);
+  if(id==='sec-assessment'){document.getElementById('assess-intro').style.display='block';document.getElementById('assess-exam').style.display='none';document.getElementById('result-overlay').style.display='none';}
+  document.getElementById('main-area').scrollTop=0;
+}
+function buildHeroArt(){const g=document.getElementById('hero-art');if(!g)return;[40,70,55,90,30,80,45,65,55,72,38,88,50,68,42,78].forEach(h=>{const d=document.createElement('div');d.style.cssText=`height:${h}px;border:1px solid rgba(255,255,255,.5)`;g.appendChild(d);});}
+
+let actChart,radarChart,admChart;
+function initActChart(){const ctx=document.getElementById('activityChart');if(!ctx||actChart)return;actChart=new Chart(ctx,{type:'bar',data:{labels:['Jan','Feb','Mar','Apr','Mei','Jun'],datasets:[{label:'Target',data:[8,8,8,8,8,8],backgroundColor:'#e3e3e3',barPercentage:.45,categoryPercentage:.75},{label:'Selesai',data:[5,7,4,7,6,8],backgroundColor:(ctx2)=>{const g=ctx2.chart.ctx.createLinearGradient(0,0,0,180);g.addColorStop(0,'rgb(138,5,255)');g.addColorStop(1,'rgb(214,127,46)');return g;},barPercentage:.45,categoryPercentage:.75}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},border:{display:false},ticks:{font:{size:11,family:'Space Mono'},color:'#6b6b6b'}},y:{grid:{color:'#f0f0f0'},border:{display:false},ticks:{font:{size:11},color:'#6b6b6b'}}}}});}
+function initRadar(){const ctx=document.getElementById('radarChart');if(!ctx||radarChart)return;radarChart=new Chart(ctx,{type:'radar',data:{labels:['Manajerial','Teknis','Kepemimpinan','Sosio-Kultural','Inovasi','Integritas'],datasets:[{label:'Saat Ini',data:[75,60,80,85,55,90],borderColor:'#8a05ff',backgroundColor:'rgba(138,5,255,.08)',pointBackgroundColor:'#8a05ff',pointRadius:3},{label:'Target',data:[90,80,90,90,80,95],borderColor:'#e3e3e3',backgroundColor:'transparent',pointBackgroundColor:'#e3e3e3',pointRadius:3,borderDash:[4,4]}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{r:{grid:{color:'#f0f0f0'},pointLabels:{font:{size:11,family:'Inter'},color:'#4d4d4d'},ticks:{display:false}}}}});}
+function initAdmChart(){const ctx=document.getElementById('admChart');if(!ctx||admChart)return;admChart=new Chart(ctx,{type:'line',data:{labels:['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'],datasets:[{label:'ASN Aktif',data:[1800,2100,2300,2500,2700,2900,3000,3050,3100,3150,3180,3200],borderColor:'#8a05ff',backgroundColor:'rgba(138,5,255,.04)',fill:true,tension:.4,pointRadius:3},{label:'Sertifikat',data:[200,400,650,900,1200,1500,1800,2100,2400,2700,3000,3200],borderColor:'rgb(214,127,46)',backgroundColor:'rgba(214,127,46,.04)',fill:true,tension:.4,pointRadius:3}]},options:{responsive:true,plugins:{legend:{labels:{font:{size:11},boxWidth:10}}},scales:{x:{grid:{display:false},border:{display:false},ticks:{font:{size:11,family:'Space Mono'},color:'#6b6b6b'}},y:{grid:{color:'#f0f0f0'},border:{display:false},ticks:{font:{size:11},color:'#6b6b6b'}}}}});}
+
+function renderActiveCourses(){const el=document.getElementById('active-courses-list');const active=COURSES.filter(c=>c.pct>0&&c.pct<100).slice(0,3);el.innerHTML=active.map(c=>`<div style="display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);"><div style="width:42px;height:42px;background:${c.color};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:18px;"><i class="${c.icon}"></i></div><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.title}</div><div style="font-size:11px;color:var(--fg-3);margin-bottom:6px;">${c.inst}</div><div style="display:flex;align-items:center;gap:7px;"><div style="flex:1;height:2px;background:var(--border);"><div style="height:100%;width:${c.pct}%;background:linear-gradient(to right,#8a05ff,rgb(214,127,46));"></div></div><span style="font-size:10px;font-family:'Space Mono',monospace;color:var(--fg-3);">${c.pct}%</span></div></div><button class="primary-button" style="font-size:11px;padding:6px 11px;flex-shrink:0;"><i class="bi bi-play-fill"></i> Lanjut</button></div>`).join('');}
+function renderMyCourses(){const el=document.getElementById('my-courses-list');el.innerHTML=COURSES.filter(c=>c.pct>0).map(c=>`<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);"><div style="width:44px;height:44px;background:${c.color};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:18px;"><i class="${c.icon}"></i></div><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;margin-bottom:2px;">${c.title}</div><div style="font-size:11px;color:var(--fg-3);margin-bottom:7px;">${c.inst} · ${c.dur}</div><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:2px;background:var(--border);"><div style="height:100%;width:${c.pct}%;background:linear-gradient(to right,#8a05ff,rgb(214,127,46));"></div></div><span style="font-size:10px;font-family:'Space Mono',monospace;color:var(--fg-3);">${c.pct}%</span></div></div><span class="pill-tag">${c.cat}</span><button class="${c.pct===100?'outline-button':'primary-button'}" style="font-size:11px;padding:6px 11px;">${c.pct===100?'Review':'Lanjut'}</button></div>`).join('');}
+
+let catFilter='all';
+function renderCatalog(filter){if(filter!==undefined)catFilter=filter;const data=catFilter==='all'?COURSES:COURSES.filter(c=>c.cat===catFilter);const el=document.getElementById('catalog-grid');el.innerHTML=data.map((c,i)=>`<div style="border-right:${i%3<2?'1px solid var(--border)':'none'};border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''"><div style="height:110px;background:${c.color};display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;"><div style="position:absolute;top:9px;left:9px;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.65);padding:2px 7px;">${c.cat}</div><i class="${c.icon}" style="font-size:48px;color:rgba(255,255,255,.08);"></i></div><div style="padding:14px 16px;"><div style="font-size:13px;font-weight:500;line-height:1.4;margin-bottom:8px;">${c.title}</div><div style="font-size:11px;color:var(--fg-3);margin-bottom:4px;"><i class="bi bi-person-fill"></i> ${c.inst}</div><div style="font-size:11px;color:var(--fg-3);margin-bottom:10px;"><i class="bi bi-clock"></i> ${c.dur}</div><div style="display:flex;align-items:center;justify-content:space-between;"><span class="pill-tag">${c.cat}</span><button class="primary-button" style="font-size:11px;padding:5px 11px;">${c.pct===100?'Selesai':c.pct>0?'Lanjut':'Mulai'}</button></div>${c.pct>0?`<div style="height:2px;background:var(--border);margin-top:10px;"><div style="height:100%;width:${c.pct}%;background:linear-gradient(to right,#8a05ff,rgb(214,127,46));"></div></div><div style="font-size:10px;font-family:'Space Mono',monospace;color:var(--fg-3);margin-top:4px;">${c.pct}% selesai</div>`:''}</div></div>`).join('');}
+function filterCat(cat,btn){document.querySelectorAll('#cat-tabs .tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderCatalog(cat);}
+function searchCat(q){const data=COURSES.filter(c=>c.title.toLowerCase().includes(q.toLowerCase())||c.cat.toLowerCase().includes(q.toLowerCase()));const el=document.getElementById('catalog-grid');el.innerHTML=data.length?data.map((c,i)=>`<div style="border-right:${i%3<2?'1px solid var(--border)':'none'};border-bottom:1px solid var(--border);padding:14px 16px;"><div style="font-size:13px;font-weight:500;margin-bottom:4px;">${c.title}</div><div style="font-size:11px;color:var(--fg-3);">${c.cat} · ${c.dur}</div></div>`).join(''):'<div style="padding:32px;text-align:center;color:var(--fg-3);font-size:13px;">Tidak ada hasil ditemukan.</div>';}
+
+function renderLP(){const el=document.getElementById('lp-items');el.innerHTML=LP_DATA.map((item,i)=>`<div style="display:flex;gap:0;margin-bottom:0;"><div style="display:flex;flex-direction:column;align-items:center;width:44px;flex-shrink:0;"><div style="width:30px;height:30px;border:2px solid ${item.done?'#009e7a':item.locked?'var(--border)':'var(--fg)'};background:${item.done?'#009e7a':'#fff'};display:flex;align-items:center;justify-content:center;z-index:1;flex-shrink:0;">${item.done?'<i class="bi bi-check-lg" style="color:#fff;font-size:13px;"></i>':item.locked?'<i class="bi bi-lock-fill" style="color:var(--border);font-size:11px;"></i>':`<span style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;">${i+1}</span>`}</div>${i<LP_DATA.length-1?`<div style="flex:1;width:2px;background:${item.done?'#009e7a':'var(--border)'};min-height:36px;"></div>`:''}</div><div class="lp-node ${item.done?'done':''} ${item.locked?'locked':''}" style="flex:1;margin-left:10px;margin-bottom:0;"><div style="flex:1;"><div style="font-size:13px;font-weight:500;margin-bottom:2px;">${item.title}</div><div style="font-size:12px;color:var(--fg-3);margin-bottom:3px;">${item.sub}</div><div style="font-size:11px;color:var(--fg-3);font-family:'Space Mono',monospace;"><i class="bi bi-clock"></i> ${item.dur}</div></div>${!item.locked?`<button class="${item.done?'outline-button':'primary-button'}" style="font-size:11px;padding:6px 11px;flex-shrink:0;">${item.done?'Review':'Mulai'}</button>`:'<span style="font-size:11px;color:var(--fg-3);font-family:\'Space Mono\',monospace;">Terkunci</span>'}</div></div>`).join('');}
+function renderSkillMatrix(){const skills=[{name:'Kompetensi Manajerial',c:75,t:90},{name:'Kompetensi Teknis',c:60,t:80},{name:'Kepemimpinan',c:80,t:90},{name:'Sosio-Kultural',c:85,t:90},{name:'Inovasi & Kreativitas',c:55,t:80},{name:'Integritas',c:90,t:95}];const el=document.getElementById('skill-matrix');el.innerHTML=skills.map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);"><span style="width:155px;font-size:12px;color:var(--fg-2);flex-shrink:0;">${s.name}</span><div style="flex:1;height:3px;background:var(--border);position:relative;"><div style="height:100%;width:${s.c}%;background:linear-gradient(to right,#8a05ff,rgb(214,127,46));"></div><div style="position:absolute;top:-3px;height:9px;width:2px;background:var(--fg);left:${s.t}%;"></div></div><span style="font-family:'Space Mono',monospace;font-size:11px;width:26px;text-align:right;">${s.c}</span><span style="font-size:11px;font-family:'Space Mono',monospace;width:40px;text-align:right;color:${s.t-s.c>20?'#e96770':s.t-s.c>10?'rgb(214,127,46)':'#009e7a'};">${s.t-s.c>0?'↓'+(s.t-s.c):'✓'}</span></div>`).join('');}
+function renderKnowledge(){const feat=KN_DATA.filter(k=>k.feat);const list=KN_DATA.filter(k=>!k.feat);document.getElementById('feat-kn').innerHTML=feat.map((k,i)=>`<div style="padding:22px;${i<feat.length-1?'border-right:1px solid var(--border);':''}"><div style="width:34px;height:34px;background:${k.bg};display:flex;align-items:center;justify-content:center;margin-bottom:11px;font-size:16px;color:${k.tc};"><i class="${k.icon}"></i></div><div style="font-size:10px;font-family:'Space Mono',monospace;color:${k.tc};text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">${k.type}</div><div style="font-size:14px;font-weight:500;line-height:1.4;margin-bottom:8px;">${k.title}</div><div style="font-size:11px;color:var(--fg-3);">${k.date} · ${k.views} tampilan</div></div>`).join('');document.getElementById('kn-list').innerHTML=list.map(k=>`<div class="kn-item"><div style="width:30px;height:30px;background:${k.bg};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;color:${k.tc};"><i class="${k.icon}"></i></div><div style="flex:1;"><div style="font-size:13px;font-weight:500;margin-bottom:2px;">${k.title}</div><div style="font-size:11px;color:var(--fg-3);">${k.type} · ${k.date} · ${k.views} tampilan</div></div><i class="bi bi-download" style="color:var(--fg-3);font-size:13px;flex-shrink:0;"></i></div>`).join('');}
+function renderCerts(){document.getElementById('cert-grid').innerHTML=CERTS.map((c,i)=>`<div style="border-right:${i%2===0?'1px solid var(--border)':'none'};border-bottom:1px solid var(--border);"><div class="cert-head"><div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:6px;">Certificate of Completion</div><div style="font-size:15px;font-weight:500;color:#fff;line-height:1.4;margin-bottom:3px;">${c.title}</div><div style="font-size:11px;color:rgba(255,255,255,.4);">Budi Santoso, S.Sos · Dinas Kesehatan · Kab. Mojokerto</div></div><div style="padding:14px 18px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="font-size:10px;color:var(--fg-3);font-family:'Space Mono',monospace;">${c.id}</div><span class="badge-active">Aktif</span></div><div style="display:flex;justify-content:space-between;margin-bottom:13px;"><div><div style="font-size:10px;color:var(--fg-3);margin-bottom:2px;">Tanggal</div><div style="font-size:12px;font-weight:500;">${c.date}</div></div><div style="text-align:right;"><div style="font-size:10px;color:var(--fg-3);margin-bottom:2px;">Nilai</div><div style="font-size:24px;font-weight:700;font-family:'Space Mono',monospace;" class="gradient-text">${c.score}</div></div></div><div style="display:flex;gap:7px;"><button class="outline-button" style="flex:1;justify-content:center;font-size:11px;padding:7px 10px;"><i class="bi bi-download"></i> Unduh</button><button class="outline-button" style="flex:1;justify-content:center;font-size:11px;padding:7px 10px;"><i class="bi bi-share"></i> Bagikan</button></div></div></div>`).join('');}
+function renderAdminUsers(){const t=document.getElementById('admin-user-table');t.innerHTML=`<thead><tr><th>#</th><th>Nama</th><th>NIP</th><th>OPD</th><th>Peran</th><th>Kursus</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${USERS.map((u,i)=>`<tr><td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--fg-3);">${String(i+1).padStart(2,'0')}</td><td><div style="font-weight:500;">${u.name}</div></td><td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--fg-3);">${u.nip}</td><td style="font-size:12px;">${u.opd}</td><td><span class="pill-tag">${u.role}</span></td><td style="font-family:'Space Mono',monospace;font-size:12px;">${u.courses}</td><td><span class="${u.status==='Aktif'?'badge-active':'badge-inactive'}">${u.status}</span></td><td><div style="display:flex;gap:5px;"><button class="outline-button" style="font-size:11px;padding:3px 9px;">Edit</button><button class="outline-button" style="font-size:11px;padding:3px 9px;">Reset</button></div></td></tr>`).join('')}</tbody>`;}
+function renderAdminCourses(){const t=document.getElementById('admin-course-table');t.innerHTML=`<thead><tr><th>#</th><th>Judul Kursus</th><th>Kategori</th><th>Durasi</th><th>Peserta</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${COURSES.map((c,i)=>`<tr><td style="font-family:'Space Mono',monospace;font-size:11px;color:var(--fg-3);">${String(i+1).padStart(2,'0')}</td><td style="font-weight:500;">${c.title}</td><td><span class="pill-tag">${c.cat}</span></td><td style="font-size:12px;">${c.dur}</td><td style="font-family:'Space Mono',monospace;font-size:12px;">${Math.floor(Math.random()*280+60)}</td><td><span class="badge-active">Aktif</span></td><td><div style="display:flex;gap:5px;"><button class="outline-button" style="font-size:11px;padding:3px 9px;">Edit</button><button class="outline-button" style="font-size:11px;padding:3px 9px;">Hapus</button></div></td></tr>`).join('')}</tbody>`;}
+function renderLog(){document.getElementById('activity-log').innerHTML=LOGS.map((l,i)=>`<div style="display:flex;align-items:center;gap:11px;padding:12px 16px;border-bottom:${i<LOGS.length-1?'1px solid var(--border)':'none'};"><div style="width:30px;height:30px;background:${l.bg};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;color:${l.tc};"><i class="${l.icon}"></i></div><div style="flex:1;font-size:13px;"><strong>${l.user}</strong> ${l.action}</div><span style="font-size:11px;color:var(--fg-3);font-family:'Space Mono',monospace;flex-shrink:0;">${l.time}</span></div>`).join('');}
+function setAdminTab(btn,id){document.querySelectorAll('[id^="at-"]').forEach(el=>el.style.display='none');document.getElementById(id).style.display='block';document.querySelectorAll('#admin-tab-bar .tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(id==='at-analytics')setTimeout(initAdmChart,100);}
+
+/* ── ASSESSMENT ENGINE ── */
+let curQ=0,answers={},examInterval,timerSec=7200;
+
+function startExam(){
+  document.getElementById('assess-intro').style.display='none';
+  document.getElementById('assess-exam').style.display='block';
+  curQ=0; answers={}; timerSec=7200;
+  buildQNav(); renderQ(); startTimer();
+}
+
+function buildQNav(){
+  document.getElementById('q-nav').innerHTML=QUESTIONS.map((_,i)=>
+    `<button class="exam-q-btn" id="qn-${i}" onclick="jumpQ(${i})">${String(i+1).padStart(2,'0')}</button>`
+  ).join('');
+}
+
+function updateQNav(){
+  QUESTIONS.forEach((_,i)=>{
+    const b=document.getElementById('qn-'+i);
+    if(!b)return;
+    b.className='exam-q-btn';
+    if(i===curQ) b.classList.add('current');
+    else if(answers[i]!==undefined) b.classList.add('answered');
+  });
+  const n=Object.keys(answers).length;
+  document.getElementById('e-answered').textContent=n;
+  document.getElementById('e-left').textContent=QUESTIONS.length-n;
+  const pct=Math.round(n/QUESTIONS.length*100);
+  const fill=document.getElementById('e-progress-fill');
+  const txt=document.getElementById('e-progress-text');
+  if(fill) fill.style.width=pct+'%';
+  if(txt)  txt.textContent=n+' / '+QUESTIONS.length;
+}
+
+function renderQ(){
+  const q=QUESTIONS[curQ];
+  const letters=['A','B','C','D'];
+  document.getElementById('q-area').innerHTML=`
+  <div class="q-panel">
+    <div class="q-panel-head">
+      <span class="q-num">${String(curQ+1).padStart(2,'0')}</span>
+      <span class="q-type-chip">Pilihan Ganda</span>
+    </div>
+    <p class="q-text">${q.q}</p>
+    <div class="q-options">
+      ${q.opts.map((o,i)=>`
+      <div class="mc-opt${answers[curQ]===i?' sel':''}" onclick="pickOpt(${i})">
+        <span class="mc-letter">${letters[i]}</span>
+        <span class="mc-opt-text">${o}</span>
+      </div>`).join('')}
+    </div>
+    <div class="q-footer">
+      <button class="outline-button" onclick="chQ(-1)" style="font-size:12px;padding:9px 16px;${curQ===0?'opacity:.35;pointer-events:none;':''}">
+        <i class="bi bi-chevron-left"></i> Sebelumnya
+      </button>
+      <span class="q-counter">${curQ+1} / ${QUESTIONS.length}</span>
+      ${curQ<QUESTIONS.length-1
+        ?`<button class="primary-button" onclick="chQ(1)" style="font-size:12px;padding:9px 16px;">Selanjutnya <i class="bi bi-chevron-right"></i></button>`
+        :`<button class="primary-button" onclick="finishExam()" style="font-size:12px;padding:9px 16px;"><i class="bi bi-check-circle"></i> Selesai</button>`}
+    </div>
+  </div>`;
+  updateQNav();
+}
+
+function pickOpt(i){answers[curQ]=i;renderQ();}
+function chQ(d){const n=curQ+d;if(n>=0&&n<QUESTIONS.length){curQ=n;renderQ();}}
+function jumpQ(i){curQ=i;renderQ();}
+
+function startTimer(){
+  if(examInterval)clearInterval(examInterval);
+  examInterval=setInterval(()=>{
+    timerSec=Math.max(0,timerSec-1);
+    const h=Math.floor(timerSec/3600),m=Math.floor((timerSec%3600)/60),s=timerSec%60;
+    const el=document.getElementById('exam-timer');
+    const wrap=document.getElementById('exam-timer-wrap');
+    if(el) el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    if(timerSec<600&&wrap) wrap.classList.add('warn');
+    if(timerSec<=0){clearInterval(examInterval);finishExam();}
+  },1000);
+}
+
+function finishExam(){
+  clearInterval(examInterval);
+  const correct=QUESTIONS.filter((_,i)=>answers[i]===QUESTIONS[i].ans).length;
+  const score=Math.round(correct/QUESTIONS.length*100);
+  const passed=score>=70;
+  document.getElementById('res-score').textContent=score;
+  document.getElementById('res-verdict').innerHTML=passed?'<span style="color:#009e7a;">✓ LULUS</span>':'<span style="color:#e96770;">✗ BELUM LULUS</span>';
+  document.getElementById('res-msg').textContent=`Anda menjawab ${correct} dari ${QUESTIONS.length} soal dengan benar. ${passed?'Sertifikat kompetensi telah diterbitkan dan dapat diunduh di halaman Sertifikasi.':'Pelajari kembali materi dan coba lagi pada sesi berikutnya.'}`;
+  document.getElementById('result-overlay').style.display='flex';
+}
+
+function closeResult(){
+  document.getElementById('result-overlay').style.display='none';
+  document.getElementById('assess-intro').style.display='block';
+  document.getElementById('assess-exam').style.display='none';
+}
+</script>
+</body>
+</html>
