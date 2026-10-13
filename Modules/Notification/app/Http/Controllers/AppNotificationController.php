@@ -33,9 +33,18 @@ class AppNotificationController extends Controller
 
     public function unreadCount(Request $request)
     {
-        $count = AppNotification::where('user_id', $request->user()->id)
-            ->whereNull('read_at')
-            ->count();
+        $query = AppNotification::where('user_id', $request->user()->id)
+            ->whereNull('read_at');
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->string('type')->toString());
+        }
+
+        if ($request->filled('link')) {
+            $query->where('link', $request->string('link')->toString());
+        }
+
+        $count = $query->count();
 
         return ApiResponse::success('Count retrieved', ['count' => $count]);
     }
@@ -49,9 +58,19 @@ class AppNotificationController extends Controller
 
     public function markAllRead(Request $request)
     {
-        AppNotification::where('user_id', $request->user()->id)
-            ->whereNull('read_at')
-            ->update(['read_at' => now()]);
+        $query = AppNotification::where('user_id', $request->user()->id)
+            ->whereNull('read_at');
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->string('type')->toString());
+        }
+
+        if ($request->filled('link')) {
+            $query->where('link', $request->string('link')->toString());
+        }
+
+        $query->update(['read_at' => now()]);
+
         return ApiResponse::success('All marked as read');
     }
 }

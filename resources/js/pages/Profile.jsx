@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Award, BookOpen, CalendarDays, Camera, CheckCircle,
-  Coins, Edit2, Flame, KeyRound, Loader2, Save, TrendingUp, X,
+  Award, BookOpen, BriefcaseBusiness, Building2, CalendarDays, Camera, CheckCircle,
+  Coins, Edit2, Flame, IdCard, KeyRound, Layers3, Loader2, Mail, Save,
+  ShieldCheck, TrendingUp, UserCheck, X,
 } from 'lucide-react';
 import api from '../api.js';
-import ThemeSettings from '../components/ThemeSettings.jsx';
 
 /* ── tier CSS class (no hardcoded hex in JS) ── */
 function tierClass(tier) {
@@ -17,6 +17,13 @@ function tierClass(tier) {
 }
 
 const ICON_MAP = { Award, BookOpen, Coins, Flame };
+const ROLE_LABELS = {
+  asn: 'ASN',
+  'admin-opd': 'Admin OPD',
+  'super-admin': 'Super Admin',
+  'fasilitator-internal': 'Fasilitator Internal',
+  'fasilitator-eksternal': 'Fasilitator Eksternal',
+};
 
 /* ── deterministic avatar colour ── */
 const AVATAR_PALETTE = ['#5b02ad','#007a5e','#b8651c','#0b3d91','#123b35','#a0271e'];
@@ -140,6 +147,68 @@ const EVENT_STATUS_LABEL = {
   completed: 'Selesai',
 };
 
+const COMPETENCY_AREAS = [
+  { title: 'Manajerial', desc: 'Kepemimpinan, perencanaan, dan pengelolaan kinerja.' },
+  { title: 'Teknis', desc: 'Penguatan kemampuan sesuai jabatan dan bidang tugas.' },
+  { title: 'Sosial Kultural', desc: 'Kolaborasi lintas unit dan pelayanan publik.' },
+  { title: 'Keterampilan Digital', desc: 'Literasi data, aplikasi kerja, dan pembelajaran digital.' },
+];
+
+function formatDateTime(value) {
+  if (!value) return 'Belum tercatat';
+  try {
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function formatDate(value) {
+  if (!value) return null;
+  try {
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function eventPeriod(event) {
+  const start = formatDate(event.start_date);
+  const end = formatDate(event.end_date);
+
+  if (start && end && start !== end) return `${start} - ${end}`;
+  return start || end || 'Tanggal belum tercatat';
+}
+
+function profileCompletionItems(user) {
+  return [
+    { key: 'nip', label: 'NIP', done: Boolean(user?.nip), source: 'SIMPEG' },
+    { key: 'email', label: 'Email', done: Boolean(user?.email), source: 'CorpU' },
+    { key: 'position', label: 'Jabatan', done: Boolean(user?.position_name), source: 'SIMPEG' },
+    { key: 'opd', label: 'OPD', done: Boolean(user?.opd_name), source: 'SIMPEG' },
+    { key: 'unit', label: 'Unit kerja', done: Boolean(user?.organization_unit_name), source: 'SIMPEG' },
+    { key: 'photo', label: 'Foto profil', done: Boolean(user?.photo_url), source: 'CorpU' },
+    { key: 'password', label: 'Password lokal', done: Boolean(user?.has_password), source: 'CorpU' },
+  ];
+}
+
+function InfoRow({ icon: Icon, label, value, tag }) {
+  return (
+    <div className="pf-info-row">
+      <div className="pf-info-icon"><Icon size={15} /></div>
+      <div className="pf-info-body">
+        <span>{label}</span>
+        <strong>{value || 'Belum tersedia'}</strong>
+      </div>
+      {tag && <em>{tag}</em>}
+    </div>
+  );
+}
+
 /* ── Edit profile modal ── */
 function EditModal({ user, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -163,7 +232,7 @@ function EditModal({ user, onClose, onSaved }) {
     <div className="profile-modal-overlay">
       <div className="profile-modal">
         <div className="profile-modal-head">
-          <h2>Edit Profil</h2>
+          <h2>Ubah Profil</h2>
           <button className="icon-button" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
         </div>
         <div className="profile-modal-body">
@@ -189,14 +258,18 @@ function EditModal({ user, onClose, onSaved }) {
 }
 
 /* ── Change password modal ── */
-function PasswordModal({ onClose }) {
+function PasswordModal({ mode = 'change', onClose, onSaved }) {
+  const isSetup = mode === 'setup';
   const [form, setForm] = useState({ current_password: '', password: '', password_confirmation: '' });
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState(false);
 
   const mut = useMutation({
-    mutationFn: (data) => api.post('/profile/change-password', data),
-    onSuccess: () => setSuccess(true),
+    mutationFn: (data) => api.post(isSetup ? '/profile/set-password' : '/profile/change-password', data),
+    onSuccess: (res) => {
+      setSuccess(true);
+      if (isSetup) onSaved?.(res.data?.data?.user || {});
+    },
     onError:   (e) => setError(e?.response?.data?.message || 'Gagal mengubah password.'),
   });
 
@@ -204,20 +277,20 @@ function PasswordModal({ onClose }) {
     { key: 'current_password',      label: 'Password Lama' },
     { key: 'password',              label: 'Password Baru' },
     { key: 'password_confirmation', label: 'Konfirmasi Password Baru' },
-  ];
+  ].filter((field) => !isSetup || field.key !== 'current_password');
 
   return (
     <div className="profile-modal-overlay">
       <div className="profile-modal">
         <div className="profile-modal-head">
-          <h2>Ganti Password</h2>
+          <h2>{isSetup ? 'Buat Password Lokal' : 'Ganti Password'}</h2>
           <button className="icon-button" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
         </div>
         <div className="profile-modal-body">
           {success ? (
             <div className="profile-modal-success">
               <CheckCircle size={38} className="pf-success-icon" />
-              <strong>Password berhasil diubah.</strong>
+              <strong>{isSetup ? 'Password lokal berhasil dibuat.' : 'Password berhasil diubah.'}</strong>
               <div className="pf-success-close">
                 <button className="primary-button" onClick={onClose}>Tutup</button>
               </div>
@@ -235,7 +308,7 @@ function PasswordModal({ onClose }) {
               <div className="profile-modal-foot">
                 <button className="outline-button compact" onClick={onClose}>Batal</button>
                 <button className="primary-button compact" onClick={() => mut.mutate(form)} disabled={mut.isPending}>
-                  {mut.isPending ? 'Memproses…' : 'Ubah Password'}
+                  {mut.isPending ? 'Memproses…' : isSetup ? 'Buat Password' : 'Ubah Password'}
                 </button>
               </div>
             </>
@@ -329,6 +402,7 @@ export default function Profile({ onUpdateSession }) {
   const badges = data?.badges  || [];
   const streak = data?.streak;
   const events = data?.recent_events || [];
+  const hasPassword = Boolean(user?.has_password);
 
   const handleSaved = (updated) => {
     qc.setQueryData(['profile'], (old) => old ? { ...old, user: { ...old.user, ...updated } } : old);
@@ -340,13 +414,25 @@ export default function Profile({ onUpdateSession }) {
     qc.setQueryData(['profile'], (old) => old ? { ...old, user: { ...old.user, photo_url: url } } : old);
   };
 
+  const handlePasswordSaved = (updated = {}) => {
+    qc.setQueryData(['profile'], (old) => old ? {
+      ...old,
+      user: { ...old.user, ...updated, has_password: true },
+    } : old);
+    onUpdateSession?.({ ...updated, has_password: true }, { requires_password_setup: false });
+  };
+
   if (isLoading) return <ProfileSkeleton />;
 
   const completionRate = stats?.events_total
     ? Math.round((stats.events_completed / stats.events_total) * 100)
     : 0;
 
-  const roleLabel = (user?.roles || []).join(', ').replace(/-/g, ' ') || user?.user_type || 'ASN';
+  const roleLabel = (user?.roles || []).map((role) => ROLE_LABELS[role] ?? role).join(', ') || ROLE_LABELS[user?.user_type] || user?.user_type || 'ASN';
+  const profileItems = profileCompletionItems({ ...user, photo_url: localPhoto || user?.photo_url });
+  const completedProfileItems = profileItems.filter((item) => item.done).length;
+  const profileCompletionRate = Math.round((completedProfileItems / profileItems.length) * 100);
+  const missingProfileItems = profileItems.filter((item) => !item.done).slice(0, 3);
 
   return (
     <div className="page-stack">
@@ -371,19 +457,53 @@ export default function Profile({ onUpdateSession }) {
               {user?.opd_name || user?.organization_unit_name}
               {user?.nip && <> · <span>NIP {user.nip}</span></>}
             </p>
+            <div className="profile-source-row">
+              <span>{user?.auth_provider === 'sso_asn' ? 'SSO ASN aktif' : 'Login lokal'}</span>
+              <span>{user?.synced_from || 'Data lokal CorpU'}</span>
+            </div>
           </div>
           <div className="profile-hero-actions">
             <button className="profile-hero-btn" onClick={() => setEditOpen(true)}>
-              <Edit2 size={13} /> Edit Profil
+              <Edit2 size={13} /> Ubah Profil
             </button>
             <button className="profile-hero-btn" onClick={() => setPwOpen(true)}>
-              <KeyRound size={13} /> Password
+              <KeyRound size={13} /> {hasPassword ? 'Password' : 'Buat Password'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Stats ──────────────────────────────────────── */}
+      {/* ── Profile completeness ───────────────────────── */}
+      <section className="enterprise-card pf-completion-card">
+        <div className="section-title">
+          <div>
+            <p className="mono-kicker text-muted">Kelengkapan Profil</p>
+            <h2>Data ASN CorpU</h2>
+          </div>
+          <span className="badge-active">{profileCompletionRate}%</span>
+        </div>
+        <div className="pf-completion-layout">
+          <div>
+            <div className="pf-completion-bar-track">
+              <div className="pf-completion-bar-fill" style={{ width: `${profileCompletionRate}%` }} />
+            </div>
+            <p className="pf-completion-note">
+              {missingProfileItems.length
+                ? `Lengkapi ${missingProfileItems.map((item) => item.label.toLowerCase()).join(', ')}.`
+                : 'Profil sudah lengkap untuk kebutuhan pembelajaran CorpU.'}
+            </p>
+          </div>
+          <div className="pf-completion-checks">
+            {profileItems.map((item) => (
+              <span key={item.key} className={item.done ? 'done' : 'todo'}>
+                {item.done ? <CheckCircle size={12} /> : <X size={12} />}
+                {item.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <div className="profile-stats">
         <StatCard icon={CalendarDays} label="Pelatihan Diikuti"
           value={stats?.events_total}
@@ -393,23 +513,92 @@ export default function Profile({ onUpdateSession }) {
           value={stats?.avg_score || '—'}
           sub={`${stats?.assessments_total ?? 0} asesmen`}
           colorClass="pf-stat-sky" />
-        <StatCard icon={CheckCircle} label="Asesmen Lulus"
+          <StatCard icon={CheckCircle} label="Asesmen Lulus"
           value={stats?.passed_count ?? '—'}
-          sub={`Best: ${stats?.best_score || '—'}`}
+          sub={`Terbaik: ${stats?.best_score || '—'}`}
           colorClass="pf-stat-em" />
         <StatCard icon={Coins} label="Saldo Token"
           value={(wallet?.balance || 0).toLocaleString()}
           colorClass="pf-stat-gold" />
-        <StatCard icon={Award} label="Badge Diraih"
+        <StatCard icon={Award} label="Capaian Kompetensi"
           value={badges.length}
           colorClass="pf-stat-grape" />
         {streak && (
-          <StatCard icon={Flame} label="Streak Terpanjang"
+        <StatCard icon={Flame} label="Runtun Terpanjang"
             value={streak.longest_streak}
             sub="hari"
             colorClass="pf-stat-gold" />
         )}
       </div>
+
+      {/* ── ASN identity + account status ───────────────── */}
+      <div className="profile-grid">
+        <section className="enterprise-card">
+          <div className="section-title">
+            <div>
+              <p className="mono-kicker text-muted">Data Pegawai</p>
+              <h2>Identitas Kepegawaian</h2>
+            </div>
+            <span className="badge-active">SIMPEG</span>
+          </div>
+          <div className="pf-info-list">
+            <InfoRow icon={IdCard} label="NIP" value={user?.nip} tag="SIMPEG" />
+            <InfoRow icon={Mail} label="Email" value={user?.email} />
+            <InfoRow icon={BriefcaseBusiness} label="Jabatan" value={user?.position_name} tag="SIMPEG" />
+            <InfoRow icon={Building2} label="OPD / Satker" value={user?.opd_name} tag="SIMPEG" />
+            <InfoRow icon={Layers3} label="Unit Kerja" value={user?.organization_unit_name} tag="SIMPEG" />
+          </div>
+        </section>
+
+        <section className="enterprise-card">
+          <div className="section-title">
+            <div>
+              <p className="mono-kicker text-muted">Keamanan</p>
+              <h2>Akun & Akses</h2>
+            </div>
+          </div>
+          <div className="pf-security-panel">
+            <div className="pf-security-status">
+              <ShieldCheck size={19} />
+              <div>
+                <strong>{user?.auth_provider === 'sso_asn' ? 'Login SSO ASN aktif' : 'Login lokal aktif'}</strong>
+                <span>{user?.synced_from || 'Data lokal CorpU'}</span>
+              </div>
+            </div>
+            <div className={`pf-password-callout ${hasPassword ? 'ready' : 'empty'}`}>
+              <div>
+                <span>Password Lokal</span>
+                <strong>{hasPassword ? 'Sudah dibuat' : 'Belum dibuat'}</strong>
+              </div>
+              <button className={hasPassword ? 'outline-button compact' : 'primary-button compact'} onClick={() => setPwOpen(true)}>
+                <KeyRound size={14} /> {hasPassword ? 'Ganti' : 'Buat Password'}
+              </button>
+            </div>
+            <div className="pf-account-meta">
+              <InfoRow icon={UserCheck} label="Status akun" value={user?.is_active ? 'Aktif' : 'Nonaktif'} />
+              <InfoRow icon={CalendarDays} label="Terakhir login" value={formatDateTime(user?.last_login_at)} />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* ── Competency areas ───────────────────────────── */}
+      <section className="enterprise-card">
+        <div className="section-title">
+          <div>
+            <p className="mono-kicker text-muted">Pengembangan Kompetensi</p>
+            <h2>Fokus Pembelajaran</h2>
+          </div>
+        </div>
+        <div className="pf-competency-grid">
+          {COMPETENCY_AREAS.map((item) => (
+            <div key={item.title} className="pf-competency-card">
+              <span>{item.title}</span>
+              <p>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── Badges + Events grid ───────────────────────── */}
       <div className="profile-grid">
@@ -418,14 +607,14 @@ export default function Profile({ onUpdateSession }) {
         <section className="enterprise-card">
           <div className="section-title">
             <div>
-              <p className="mono-kicker text-muted">Gamifikasi</p>
-              <h2>Badge Diraih</h2>
+              <p className="mono-kicker text-muted">Capaian</p>
+              <h2>Penghargaan Kompetensi</h2>
             </div>
             {badges.length > 0 && <span className="badge-active">{badges.length}</span>}
           </div>
 
           {badges.length === 0 ? (
-            <p className="pf-empty-note">Belum ada badge. Selesaikan asesmen untuk meraih badge pertama.</p>
+            <p className="pf-empty-note">Belum ada capaian. Selesaikan asesmen untuk membuka penghargaan kompetensi.</p>
           ) : (
             <div className="profile-badge-list">
               {badges.slice(0, 6).map((b, i) => <BadgeItem key={i} badge={b} />)}
@@ -454,6 +643,7 @@ export default function Profile({ onUpdateSession }) {
                   <div className={`profile-event-dot ${eventStatusClass(e.status)}`} />
                   <div className="profile-event-body">
                     <span className="profile-event-title">{e.title}</span>
+                    <span className="profile-event-date">{eventPeriod(e)}</span>
                     <div className="profile-event-chips">
                       <span className={`pf-status-chip ${eventStatusClass(e.status)}`}>
                         {EVENT_STATUS_LABEL[e.status] || 'Terjadwal'}
@@ -475,7 +665,7 @@ export default function Profile({ onUpdateSession }) {
         <section className="enterprise-card">
           <div className="section-title">
             <div>
-              <p className="mono-kicker text-muted">Learning Progress</p>
+              <p className="mono-kicker text-muted">Progres Belajar</p>
               <h2>Tingkat Penyelesaian</h2>
             </div>
             <span className="badge-active">{completionRate}%</span>
@@ -493,11 +683,14 @@ export default function Profile({ onUpdateSession }) {
         </section>
       )}
 
-      {/* ── Theme settings ─────────────────────────────── */}
-      <ThemeSettings />
-
       {editOpen && <EditModal user={user} onClose={() => setEditOpen(false)} onSaved={handleSaved} />}
-      {pwOpen   && <PasswordModal onClose={() => setPwOpen(false)} />}
+      {pwOpen && (
+        <PasswordModal
+          mode={hasPassword ? 'change' : 'setup'}
+          onClose={() => setPwOpen(false)}
+          onSaved={handlePasswordSaved}
+        />
+      )}
     </div>
   );
 }

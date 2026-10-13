@@ -26,6 +26,13 @@ const STATUS_COLORS = {
   cancelled: { bg: '#fef2f2', color: '#dc2626' },
 };
 
+const STATUS_LABELS = {
+  draft: 'Draf',
+  active: 'Aktif',
+  completed: 'Selesai',
+  cancelled: 'Dibatalkan',
+};
+
 function formatDate(d) {
   if (!d) return '—';
   const s = d.length > 10 ? d.substring(0, 10) : d;
@@ -214,20 +221,20 @@ export default function AdminLms() {
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Learning</p>
-        <h1>Learning Management System</h1>
+        <p className="mono-kicker text-muted">Pembelajaran</p>
+        <h1>Sistem Manajemen Pembelajaran</h1>
       </div>
 
       <div className="fm-layout">
-        {/* Event list */}
+        {/* Daftar kegiatan */}
         <aside className="fm-events-list">
-          <div className="fm-events-header">Training Events</div>
+          <div className="fm-events-header">Kegiatan Pelatihan</div>
 
           <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari event…"
+              placeholder="Cari kegiatan…"
               style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border)',
                 padding: '6px 10px', fontSize: 12, background: '#fff', color: 'var(--fg)',
                 font: 'inherit', outline: 'none' }}
@@ -236,7 +243,7 @@ export default function AdminLms() {
 
           {eventsLoading && <div className="resource-note">Memuat…</div>}
           {!eventsLoading && filteredEvents.length === 0 && (
-            <div className="resource-note">Tidak ada event ditemukan.</div>
+            <div className="resource-note">Tidak ada kegiatan ditemukan.</div>
           )}
           {filteredEvents.map((ev) => {
             const sc = STATUS_COLORS[ev.status] ?? STATUS_COLORS.draft;
@@ -252,7 +259,7 @@ export default function AdminLms() {
                     {formatDate(ev.start_date)}
                     <em style={{ fontStyle: 'normal', fontSize: 10, padding: '1px 6px',
                       background: sc.bg, color: sc.color, borderRadius: 3, fontFamily: 'inherit' }}>
-                      {ev.status}
+                      {STATUS_LABELS[ev.status] || ev.status}
                     </em>
                   </span>
                 </div>
@@ -262,12 +269,12 @@ export default function AdminLms() {
           })}
         </aside>
 
-        {/* Materials panel */}
+        {/* Panel materi */}
         <div className="fm-materials-panel">
           {!selectedUuid && (
             <div className="fm-no-event">
               <BookOpen size={36} />
-              <p>Pilih training event untuk melihat dan meninjau materi pembelajaran.</p>
+              <p>Pilih kegiatan pelatihan untuk melihat dan meninjau materi pembelajaran.</p>
             </div>
           )}
 
@@ -285,7 +292,7 @@ export default function AdminLms() {
               {!matLoading && materials.length === 0 && (
                 <div className="material-empty">
                   <BookOpen size={28} />
-                  <p>Belum ada materi pembelajaran untuk event ini.</p>
+                  <p>Belum ada materi pembelajaran untuk kegiatan ini.</p>
                   <span>Materi ditambahkan oleh fasilitator.</span>
                 </div>
               )}
@@ -319,7 +326,7 @@ export default function AdminLms() {
                       </div>
                       <div className="material-card-actions">
                         {(m.file_url || m.url) && (
-                          <a href={m.file_url || m.url} target="_blank" rel="noreferrer" className="icon-action" title="Lihat File">
+                          <a href={m.file_url || m.url} target="_blank" rel="noreferrer" className="icon-action" title="Lihat Berkas">
                             <ExternalLink size={13} />
                           </a>
                         )}

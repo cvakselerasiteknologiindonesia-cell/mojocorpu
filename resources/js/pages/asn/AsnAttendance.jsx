@@ -15,6 +15,17 @@ function formatDateTime(d) {
   return new Date(d).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+const STATUS_LABELS = {
+  active: 'Aktif',
+  approved: 'Disetujui',
+  cancelled: 'Dibatalkan',
+  completed: 'Selesai',
+  done: 'Selesai',
+  draft: 'Draf',
+  ongoing: 'Berjalan',
+  scheduled: 'Terjadwal',
+};
+
 function StatusBadge({ checked, checkedAt }) {
   if (checked) {
     return (
@@ -47,7 +58,7 @@ function AttendanceDetail({ uuid }) {
       <div className="asn-att-card">
         <div className="asn-att-card-head">
           <ClipboardCheck size={16} />
-          <strong>Presensi Event</strong>
+          <strong>Presensi Kegiatan</strong>
         </div>
         <div className="asn-att-card-body">
           <StatusBadge checked={attendance?.checked_in} checkedAt={attendance?.checked_in_at} />
@@ -55,7 +66,7 @@ function AttendanceDetail({ uuid }) {
             <p className="asn-att-hint">
               Lakukan presensi melalui halaman{' '}
               <button className="text-link-sm" onClick={() => navigate(`/training-events/${uuid}/learn`)}>
-                Learning
+                Pembelajaran
               </button>
               .
             </p>
@@ -99,17 +110,17 @@ export default function AsnAttendance() {
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Learning</p>
+        <p className="mono-kicker text-muted">Pembelajaran</p>
         <h1>Presensi Saya</h1>
       </div>
 
       <div className="fm-layout">
         {/* Event list */}
         <aside className="fm-events-list">
-          <div className="fm-events-header">Training Events</div>
+          <div className="fm-events-header">Kegiatan Pelatihan</div>
           {isLoading && <div className="resource-note">Memuat…</div>}
           {!isLoading && events.length === 0 && (
-            <div className="resource-note">Belum ada event yang diikuti.</div>
+            <div className="resource-note">Belum ada kegiatan yang diikuti.</div>
           )}
           {events.map((ev) => (
             <button
@@ -131,7 +142,7 @@ export default function AsnAttendance() {
           {!selectedUuid && (
             <div className="fm-no-event">
               <ClipboardCheck size={36} />
-              <p>Pilih event untuk melihat status presensi Anda.</p>
+              <p>Pilih kegiatan untuk melihat status presensi Anda.</p>
             </div>
           )}
 
@@ -146,7 +157,7 @@ export default function AsnAttendance() {
                   </span>
                 </div>
                 <em className={`status-badge${selectedEvent?.status === 'active' ? ' active' : ''}`}>
-                  {selectedEvent?.status ?? '—'}
+                  {STATUS_LABELS[selectedEvent?.status] ?? selectedEvent?.status ?? '—'}
                 </em>
               </div>
               <AttendanceDetail uuid={selectedUuid} />

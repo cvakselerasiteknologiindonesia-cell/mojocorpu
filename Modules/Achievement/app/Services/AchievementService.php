@@ -22,7 +22,7 @@ class AchievementService
             ->all();
 
         $badges = Badge::where('is_active', true)
-            ->when(count($alreadyOwned), fn($q) => $q->whereNotIn('id', $alreadyOwned))
+            ->when(count($alreadyOwned), fn ($q) => $q->whereNotIn('id', $alreadyOwned))
             ->orderBy('sort_order')
             ->get();
 
@@ -32,8 +32,8 @@ class AchievementService
         foreach ($badges as $badge) {
             if ($this->meets($badge, $stats, $user)) {
                 DB::table('user_badges')->insertOrIgnore([
-                    'user_id'    => $user->id,
-                    'badge_id'   => $badge->id,
+                    'user_id' => $user->id,
+                    'badge_id' => $badge->id,
                     'awarded_at' => now(),
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -50,26 +50,35 @@ class AchievementService
      */
     public function updateStreak(User $user): UserStreak
     {
-        $streak = UserStreak::firstOrNew(['user_id' => $user->id]);
-        $today  = now()->toDateString();
+        return DB::transaction(function () use ($user) {
+            // lockForUpdate prevents two concurrent job retries from both
+            // reading the same streak row and double-incrementing it.
+            $streak = UserStreak::lockForUpdate()->where('user_id', $user->id)->first();
+            if (! $streak) {
+                $streak = new UserStreak(['user_id' => $user->id]);
+            }
 
-        if ($streak->last_activity_date?->toDateString() === $today) {
-            $streak->save(); // already counted today
+            $today = now()->toDateString();
+
+            if ($streak->last_activity_date?->toDateString() === $today) {
+                $streak->save(); // already counted today
+
+                return $streak;
+            }
+
+            $yesterday = now()->subDay()->toDateString();
+            if ($streak->last_activity_date?->toDateString() === $yesterday) {
+                $streak->current_streak += 1;
+            } else {
+                $streak->current_streak = 1; // broken or first
+            }
+
+            $streak->longest_streak = max($streak->longest_streak, $streak->current_streak);
+            $streak->last_activity_date = $today;
+            $streak->save();
+
             return $streak;
-        }
-
-        $yesterday = now()->subDay()->toDateString();
-        if ($streak->last_activity_date?->toDateString() === $yesterday) {
-            $streak->current_streak += 1;
-        } else {
-            $streak->current_streak = 1; // broken or first
-        }
-
-        $streak->longest_streak   = max($streak->longest_streak, $streak->current_streak);
-        $streak->last_activity_date = $today;
-        $streak->save();
-
-        return $streak;
+        });
     }
 
     /**
@@ -87,10 +96,11 @@ class AchievementService
             ])
             ->first();
 
-        $tokensEarned = DB::table('wallet_transactions')
-            ->where('user_id', $user->id)
-            ->where('type', 'credit')
-            ->sum('amount');
+        $tokensEarned = DB::table('wallet_transactions as wt')
+            ->join('wallets as w', 'w.id', '=', 'wt.wallet_id')
+            ->where('w.user_id', $user->id)
+            ->where('wt.type', 'credit')
+            ->sum('wt.amount');
 
         $purchases = DB::table('store_purchases')
             ->where('user_id', $user->id)
@@ -100,11 +110,11 @@ class AchievementService
 
         return [
             'submission_count' => (int) ($submissions->total ?? 0),
-            'pass_count'       => (int) ($submissions->passed ?? 0),
-            'best_score'       => (int) ($submissions->best_score ?? 0),
-            'streak_days'      => (int) ($streak?->current_streak ?? 0),
-            'tokens_earned'    => (int) $tokensEarned,
-            'store_purchase'   => (int) $purchases,
+            'pass_count' => (int) ($submissions->passed ?? 0),
+            'best_score' => (int) ($submissions->best_score ?? 0),
+            'streak_days' => (int) ($streak?->current_streak ?? 0),
+            'tokens_earned' => (int) $tokensEarned,
+            'store_purchase' => (int) $purchases,
         ];
     }
 
@@ -112,13 +122,13 @@ class AchievementService
     {
         return match ($badge->criteria_type) {
             'submission_count' => $stats['submission_count'] >= $badge->criteria_value,
-            'pass_count'       => $stats['pass_count']       >= $badge->criteria_value,
-            'score_gte'        => $stats['best_score']        >= $badge->criteria_value,
-            'score_perfect'    => $stats['best_score']        >= 100,
-            'streak_days'      => $stats['streak_days']       >= $badge->criteria_value,
-            'tokens_earned'    => $stats['tokens_earned']     >= $badge->criteria_value,
-            'store_purchase'   => $stats['store_purchase']    >= $badge->criteria_value,
-            default            => false,
+            'pass_count' => $stats['pass_count'] >= $badge->criteria_value,
+            'score_gte' => $stats['best_score'] >= $badge->criteria_value,
+            'score_perfect' => $stats['best_score'] >= 100,
+            'streak_days' => $stats['streak_days'] >= $badge->criteria_value,
+            'tokens_earned' => $stats['tokens_earned'] >= $badge->criteria_value,
+            'store_purchase' => $stats['store_purchase'] >= $badge->criteria_value,
+            default => false,
         };
     }
 
@@ -135,8 +145,9 @@ class AchievementService
             ->orderBy('sort_order')
             ->get()
             ->map(function (Badge $b) use ($earned) {
-                $b->earned      = isset($earned[$b->id]);
-                $b->awarded_at  = $earned[$b->id] ?? null;
+                $b->earned = isset($earned[$b->id]);
+                $b->awarded_at = $earned[$b->id] ?? null;
+
                 return $b;
             })
             ->all();
@@ -147,8 +158,6 @@ class AchievementService
      */
     public function leaderboard(int $limit = 15): array
     {
-        $tierPoints = ['platinum' => 8, 'gold' => 4, 'silver' => 2, 'bronze' => 1];
-
         $rows = DB::table('user_badges as ub')
             ->join('users as u', 'u.id', '=', 'ub.user_id')
             ->join('badges as b', 'b.id', '=', 'ub.badge_id')
@@ -170,7 +179,11 @@ class AchievementService
             ->orderByDesc('badge_count')
             ->limit($limit)
             ->get()
-            ->map(function ($row, $i) { $row->rank = $i + 1; return $row; })
+            ->map(function ($row, $i) {
+                $row->rank = $i + 1;
+
+                return $row;
+            })
             ->all();
 
         return $rows;

@@ -11,7 +11,7 @@ import { getRoleNames } from '../utils/permissions.js';
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const TYPE_META = {
-  badge:       { label: 'Badge',       color: '#f59e0b', bg: '#fffbeb', icon: Award },
+  badge:       { label: 'Lencana',     color: '#f59e0b', bg: '#fffbeb', icon: Award },
   voucher:     { label: 'Voucher',     color: '#10b981', bg: '#ecfdf5', icon: Ticket },
   content:     { label: 'Konten',      color: '#6366f1', bg: '#eef2ff', icon: Package },
   merchandise: { label: 'Merchandise', color: '#ec4899', bg: '#fdf4ff', icon: ShoppingBag },
@@ -470,7 +470,7 @@ export default function Store({ session }) {
       <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <p className="mono-kicker text-muted">Token</p>
-          <h1>Token Store</h1>
+          <h1>Toko Token</h1>
         </div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
@@ -500,7 +500,7 @@ export default function Store({ session }) {
       {tab === 'store' && (
         <section className="enterprise-card">
           <div className="section-title" style={{ marginBottom: 16 }}>
-            <div><p className="mono-kicker text-muted">KATALOG</p><h2>Pilih Reward</h2></div>
+            <div><p className="mono-kicker text-muted">KATALOG</p><h2>Pilih Apresiasi</h2></div>
             <div style={{ display: 'flex', gap: 6 }}>
               {['all', ...Object.keys(TYPE_META)].map((t) => (
                 <button key={t} type="button" onClick={() => setFilterType(t)}

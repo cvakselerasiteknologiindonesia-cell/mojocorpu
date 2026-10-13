@@ -13,14 +13,24 @@ class FacilitatorController extends Controller
 {
     public function stats(FacilitatorService $service)
     {
-        return ApiResponse::success('Stats retrieved', $service->stats());
+        return ApiResponse::success('Statistik berhasil diambil', $service->stats());
     }
 
     public function index(Request $request, FacilitatorService $service)
     {
         try {
             if ($request->boolean('all')) {
-                return ApiResponse::success('Data retrieved', $service->all());
+                return ApiResponse::success('Data berhasil diambil', $service->all()->map(fn ($f) => [
+                    'uuid'             => $f->uuid,
+                    'id'               => $f->id,
+                    'user_id'          => $f->user_id,
+                    'user_name'        => $f->user?->name ?? '—',
+                    'user_email'       => $f->user?->email ?? '—',
+                    'facilitator_type' => $f->facilitator_type,
+                    'institution'      => $f->institution,
+                    'expertise'        => $f->expertise,
+                    'status'           => $f->status,
+                ]));
             }
 
             $filters = [
@@ -45,7 +55,7 @@ class FacilitatorController extends Controller
                 'created_at'       => $f->created_at,
             ]);
 
-            return ApiResponse::success('Data retrieved', $paginated);
+            return ApiResponse::success('Data berhasil diambil', $paginated);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
@@ -57,9 +67,9 @@ class FacilitatorController extends Controller
     {
         try {
             $record = $service->create($request->validated());
-            activity('facilitators')->event('created')->causedBy($request->user())->performedOn($record)->log('facilitators created');
+            activity('facilitators')->event('created')->causedBy($request->user())->performedOn($record)->log('fasilitator dibuat');
 
-            return ApiResponse::success('Created successfully', $record, 201);
+            return ApiResponse::success('Fasilitator berhasil dibuat', $record, 201);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
@@ -79,9 +89,9 @@ class FacilitatorController extends Controller
             ]);
 
             $record = $service->update($uuid, $data);
-            activity('facilitators')->event('updated')->causedBy($request->user())->performedOn($record)->log('facilitators updated');
+            activity('facilitators')->event('updated')->causedBy($request->user())->performedOn($record)->log('fasilitator diperbarui');
 
-            return ApiResponse::success('Updated successfully', $record);
+            return ApiResponse::success('Fasilitator berhasil diperbarui', $record);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
@@ -93,9 +103,9 @@ class FacilitatorController extends Controller
     {
         try {
             $service->delete($uuid);
-            activity('facilitators')->event('deleted')->causedBy($request->user())->log("facilitators deleted: {$uuid}");
+            activity('facilitators')->event('deleted')->causedBy($request->user())->log("fasilitator dihapus: {$uuid}");
 
-            return ApiResponse::success('Deleted successfully');
+            return ApiResponse::success('Fasilitator berhasil dihapus');
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 

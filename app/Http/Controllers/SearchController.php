@@ -76,17 +76,37 @@ class SearchController extends Controller
         // ── KMS Assets ────────────────────────────────────────────────────────
         $kmsQ = DB::table('kms_assets')
             ->where(function ($q2) use ($like) {
-                $q2->where('title', 'like', $like)->orWhere('tags', 'like', $like);
+                $q2->where('title', 'like', $like)->orWhere('description', 'like', $like);
             })
             ->where('status', 'approved');
-        if ($opdId) $kmsQ->where('opd_id', $opdId);
-        $kms = $kmsQ->select(['id', 'title', 'type'])
+        if (! $isSuper) {
+            $kmsQ->where(function ($visible) use ($user) {
+                $visible->where('uploaded_by', $user->id)
+                    ->orWhere('visibility', 'public')
+                    ->orWhere(function ($internal) use ($user) {
+                        $internal->where('visibility', 'internal')
+                            ->where(function ($scope) use ($user) {
+                                $scope->where('internal_scope', 'all');
+
+                                if ($user->opd_id) {
+                                    $scope->orWhereExists(function ($exists) use ($user) {
+                                        $exists->selectRaw('1')
+                                            ->from('kms_asset_opd')
+                                            ->whereColumn('kms_asset_opd.kms_asset_id', 'kms_assets.id')
+                                            ->where('kms_asset_opd.opd_id', $user->opd_id);
+                                    });
+                                }
+                            });
+                    });
+            });
+        }
+        $kms = $kmsQ->select(['id', 'title', 'visibility'])
             ->orderByDesc('created_at')->limit($limit)->get()
             ->map(fn ($r) => [
                 'type'  => 'kms',
                 'label' => 'Aset KMS',
                 'title' => $r->title,
-                'sub'   => ucfirst($r->type ?? 'dokumen'),
+                'sub'   => $r->visibility === 'public' ? 'Publik' : 'Internal',
                 'path'  => '/kms-assets',
             ]);
         $results = $results->merge($kms);

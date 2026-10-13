@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { safe } from '../../utils/sanitize.js';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -26,11 +27,11 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { toast } from 'sonner';
 import api from '../../api.js';
+import { loadXlsx } from '../../utils/xlsx.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -142,7 +143,8 @@ const TEMPLATE_EXAMPLES = [
   ['esai', 'Jelaskan peran ASN dalam pelayanan publik!', '', '', '', '', '', '', '', '20', 'tidak', '3'],
 ];
 
-function downloadTemplate() {
+async function downloadTemplate() {
+  const XLSX = await loadXlsx();
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...TEMPLATE_EXAMPLES]);
   XLSX.utils.book_append_sheet(wb, ws, 'Soal');
@@ -263,8 +265,9 @@ function QuestionImportPanel({ uuid, assessmentId, onDone, onClose }) {
     if (!f) return;
     setParsed(null); setParseErrors([]); setResult(null);
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await loadXlsx();
         const wb  = XLSX.read(ev.target.result, { type: 'array' });
         const ws  = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
@@ -785,7 +788,7 @@ function SubmissionsModal({ uuid, assessment, onClose }) {
                   return (
                     <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <p style={{ margin: 0, fontWeight: 500, fontSize: 13 }}>{i + 1}. <span dangerouslySetInnerHTML={{ __html: q.question }} /></p>
+                        <p style={{ margin: 0, fontWeight: 500, fontSize: 13 }}>{i + 1}. <span dangerouslySetInnerHTML={{ __html: safe(q.question) }} /></p>
                         <span style={{ fontSize: 11, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>{QUESTION_TYPE_LABELS[q.type]} · {q.points ?? 1} poin</span>
                       </div>
                       <div style={{ fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 8 }}>

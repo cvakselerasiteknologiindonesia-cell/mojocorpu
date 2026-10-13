@@ -1,4 +1,4 @@
-import sidebarByRole from '../data/sidebar.js';
+import sidebarItems from '../data/sidebar.js';
 
 export function getRoleNames(user) {
   return (user?.roles || []).map((role) => role.name).filter(Boolean);
@@ -14,10 +14,14 @@ export function hasAnyPermission(session, permissions) {
   return needed.some((permission) => granted.includes(permission));
 }
 
+export function roleCanSeeItem(roles, item) {
+  return !item.roles?.length || item.roles.some((role) => roles.includes(role));
+}
+
 export function getSidebarItems(session) {
   const roles = getRoleNames(session?.user);
-  const role = roles.find((name) => sidebarByRole[name]) || 'asn';
-  return (sidebarByRole[role] || [])
+  return sidebarItems
+    .filter((item) => roleCanSeeItem(roles, item))
     .filter((item) => roles.includes('super-admin') || hasAnyPermission(session, item.permissions || item.permission));
 }
 

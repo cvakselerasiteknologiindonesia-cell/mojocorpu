@@ -3,11 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import {
-  ExternalLink, FileText, Film, Globe, Image,
+  ChevronDown, ExternalLink, FileText, Film, Globe, Image,
   Library, Link, Lock, Pencil, Plus, Search, Tag, Trash2, Upload, User, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../api.js';
+import KmsSourcePreviewModal from '../../components/KmsSourcePreviewModal.jsx';
+import { getRoleNames } from '../../utils/permissions.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -24,7 +26,7 @@ const FILTER_TABS = [
 ];
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
-const EMPTY_FORM     = { title: '', visibility: 'internal', category_ids: [], file_path: '' };
+const EMPTY_FORM     = { title: '', visibility: 'internal', internal_scope: 'all', opd_ids: [], category_ids: [], file_path: '' };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -35,14 +37,6 @@ function formatDate(d) {
 
 function isValidUrl(str) {
   try { new URL(str); return true; } catch { return false; }
-}
-
-function guessMediaType(src = '') {
-  const ext = src.split('.').pop().toLowerCase().split('?')[0];
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
-  if (['mp4', 'webm', 'mov'].includes(ext)) return 'video';
-  if (ext === 'pdf') return 'pdf';
-  return 'other';
 }
 
 function stripHtml(html = '') {
@@ -154,13 +148,242 @@ function CategoryPicker({ categories, value, onChange }) {
   );
 }
 
+function OpdScopePicker({ opds = [], value, onChange }) {
+  const [query, setQuery] = useState('');
+  const filtered = opds.filter((opd) => `${opd.name} ${opd.code ?? ''}`.toLowerCase().includes(query.toLowerCase()));
+  const selectedCount = value.length;
+
+  const toggle = (id) => {
+    onChange(value.includes(id) ? value.filter((item) => item !== id) : [...value, id]);
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 8, borderBottom: '1px solid var(--border)' }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Cari OPD..."
+            style={{ flex: 1, minWidth: 0, border: '1px solid var(--border)', borderRadius: 4, padding: '7px 9px', fontSize: 12, outline: 'none' }}
+          />
+          <button type="button" className="outline-button compact" onClick={() => onChange(opds.map((opd) => opd.id))}>
+            Semua
+          </button>
+          {selectedCount > 0 && (
+            <button type="button" className="outline-button compact" onClick={() => onChange([])}>
+              Bersihkan
+            </button>
+          )}
+        </div>
+
+        <div style={{ maxHeight: 170, overflowY: 'auto' }}>
+          {filtered.length === 0 && (
+            <div style={{ padding: 12, fontSize: 12, color: 'var(--fg-3)' }}>OPD tidak ditemukan.</div>
+          )}
+          {filtered.map((opd) => (
+            <label
+              key={opd.id}
+              style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 10px', borderTop: '1px solid color-mix(in srgb, var(--border) 55%, transparent)', cursor: 'pointer' }}
+            >
+              <input
+                type="checkbox"
+                checked={value.includes(opd.id)}
+                onChange={() => toggle(opd.id)}
+                style={{ marginTop: 2 }}
+              />
+              <span style={{ display: 'grid', gap: 1, minWidth: 0 }}>
+                <strong style={{ fontSize: 12, color: 'var(--fg-1)', fontWeight: 600 }}>{opd.name}</strong>
+                {opd.code && <small style={{ fontSize: 10, color: 'var(--fg-3)' }}>Kode: {opd.code}</small>}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OpdScopeModal({ opds = [], value, onClose, onApply }) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()} style={{ zIndex: 1200 }}>
+      <div className="modal-box" role="dialog" aria-modal="true" style={{ maxWidth: 560, width: '92vw' }}>
+        <div className="modal-head">
+          <div>
+            <h2 style={{ margin: 0 }}>Pilih OPD</h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--fg-3)' }}>
+              Aset internal hanya terlihat oleh user dari OPD yang dipilih.
+            </p>
+          </div>
+          <button className="icon-action" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
+        </div>
+
+        <div className="modal-body" style={{ display: 'grid', gap: 12 }}>
+          <OpdScopePicker opds={opds} value={draft} onChange={setDraft} />
+          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+            {draft.length} OPD dipilih.
+          </span>
+        </div>
+
+        <div className="modal-foot" style={{ padding: '12px 18px', borderTop: '1px solid var(--border)' }}>
+          <button type="button" className="outline-button compact" onClick={onClose}>Batal</button>
+          <button
+            type="button"
+            className="primary-button compact"
+            onClick={() => {
+              onApply(draft);
+              onClose();
+            }}
+          >
+            Terapkan Pilihan
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SelectedOpdSummary({ count, names, onEdit }) {
+  const shortName = (name) => (name.length > 10 ? `${name.slice(0, 10)}...` : name);
+  const preview = names.length > 0
+    ? `${names.slice(0, 2).map(shortName).join(', ')}${names.length > 2 ? `, +${names.length - 2}` : ''}`
+    : 'Pilih OPD yang dapat melihat aset ini';
+  const fullPreview = names.length > 0 ? names.join(', ') : preview;
+
+  return (
+    <div className="fm-field" style={{ marginTop: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span>OPD Terpilih</span>
+        <small style={{ fontSize: 10, color: 'var(--fg-3)' }}>Internal terbatas</small>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', minWidth: 0 }}>
+        <span style={{ flexShrink: 0, padding: '2px 7px', borderRadius: 999, border: '1px solid var(--border)', background: '#fff', color: 'var(--fg-1)', fontSize: 11, fontWeight: 700 }}>
+          {count}
+        </span>
+        <span title={fullPreview} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, color: names.length > 0 ? 'var(--fg-2)' : 'var(--fg-3)' }}>
+          {preview}
+        </span>
+        <button type="button" className="outline-button compact" onClick={onEdit} style={{ flexShrink: 0, padding: '5px 8px' }}>
+          <Pencil size={11} /> Atur
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Visibility segmented control ───────────────────────────────────────────────
 
-function VisibilityControl({ value, onChange }) {
+function VisibilityControl({ value, onChange, internalScope = 'all', internalOpdCount = 0, onInternalScopeChange, onOpenOpdPicker }) {
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const scopeRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (scopeRef.current && !scopeRef.current.contains(event.target)) setScopeOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   return (
-    <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', width: '100%' }}>
+    <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'visible', width: '100%', position: 'relative' }}>
       {VISIBILITY_OPTIONS.map(({ value: v, label, icon: Icon }, i) => {
         const active = value === v;
+        if (v === 'internal') {
+          return (
+            <div key={v} ref={scopeRef} style={{ flex: 1, display: 'flex', position: 'relative', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
+              <button
+                type="button"
+                onClick={() => onChange(v)}
+                style={{
+                  flex: 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '9px 0',
+                  border: 'none',
+                  background: active ? '#000' : 'var(--surface)',
+                  color: active ? '#fff' : 'var(--fg-2)',
+                  fontWeight: active ? 600 : 400,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+              <button
+                type="button"
+                aria-label="Pilih cakupan OPD"
+                aria-expanded={scopeOpen}
+                onClick={() => {
+                  onChange(v);
+                  setScopeOpen((open) => !open);
+                }}
+                style={{
+                  width: 36,
+                  display: 'grid', placeItems: 'center',
+                  border: 'none',
+                  borderLeft: active ? '1px solid rgba(255,255,255,0.2)' : '1px solid var(--border)',
+                  background: active ? '#000' : 'var(--surface)',
+                  color: active ? '#fff' : 'var(--fg-2)',
+                  cursor: 'pointer',
+                }}
+              >
+                <ChevronDown size={14} style={{ transform: scopeOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+              {scopeOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  zIndex: 250,
+                  width: 210,
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  background: '#fff',
+                  boxShadow: '0 10px 24px rgba(0,0,0,0.12)',
+                  overflow: 'hidden',
+                }}>
+                  {[
+                    ['all', 'Semua OPD', 'Seluruh user internal dapat melihat.'],
+                    ['selected', 'OPD tertentu', 'Batasi ke OPD yang dipilih.'],
+                  ].map(([scope, title, desc]) => (
+                    <button
+                      key={scope}
+                      type="button"
+                      onClick={() => {
+                        onInternalScopeChange(scope);
+                        if (scope === 'selected') onOpenOpdPicker?.();
+                        setScopeOpen(false);
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'grid',
+                        gap: 2,
+                        textAlign: 'left',
+                        padding: '9px 11px',
+                        border: 'none',
+                        borderTop: scope === 'selected' ? '1px solid var(--border)' : 'none',
+                        background: internalScope === scope ? 'var(--surface-2,#f5f5f5)' : '#fff',
+                        color: 'var(--fg-1)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <strong style={{ fontSize: 12, fontWeight: 700 }}>{title}</strong>
+                      <span style={{ fontSize: 10, color: 'var(--fg-3)' }}>{desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
         return (
           <button
             key={v}
@@ -258,21 +481,21 @@ function RichEditor({ value, onChange, editorKey }) {
 
       {/* Toolbar */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, padding: '5px 8px', borderBottom: '1px solid var(--border)', background: 'var(--surface-2,#f8f8f8)' }}>
-        <TbBtn action={() => e.chain().focus().toggleBold().run()} isActive={e.isActive('bold')} title="Bold"><strong>B</strong></TbBtn>
-        <TbBtn action={() => e.chain().focus().toggleItalic().run()} isActive={e.isActive('italic')} title="Italic"><em>I</em></TbBtn>
+        <TbBtn action={() => e.chain().focus().toggleBold().run()} isActive={e.isActive('bold')} title="Tebal"><strong>B</strong></TbBtn>
+        <TbBtn action={() => e.chain().focus().toggleItalic().run()} isActive={e.isActive('italic')} title="Miring"><em>I</em></TbBtn>
         <TbBtn action={() => e.chain().focus().toggleStrike().run()} isActive={e.isActive('strike')} title="Coret"><s>S</s></TbBtn>
         <Sep />
         <TbBtn action={() => e.chain().focus().toggleHeading({ level: 2 }).run()} isActive={e.isActive('heading', { level: 2 })} title="Heading 2">H2</TbBtn>
         <TbBtn action={() => e.chain().focus().toggleHeading({ level: 3 }).run()} isActive={e.isActive('heading', { level: 3 })} title="Heading 3">H3</TbBtn>
         <Sep />
-        <TbBtn action={() => e.chain().focus().toggleBulletList().run()} isActive={e.isActive('bulletList')} title="Bullet list">• List</TbBtn>
-        <TbBtn action={() => e.chain().focus().toggleOrderedList().run()} isActive={e.isActive('orderedList')} title="Ordered list">1. List</TbBtn>
+        <TbBtn action={() => e.chain().focus().toggleBulletList().run()} isActive={e.isActive('bulletList')} title="Daftar poin">• Poin</TbBtn>
+        <TbBtn action={() => e.chain().focus().toggleOrderedList().run()} isActive={e.isActive('orderedList')} title="Daftar nomor">1. Nomor</TbBtn>
         <Sep />
         <TbBtn action={() => e.chain().focus().toggleBlockquote().run()} isActive={e.isActive('blockquote')} title="Kutipan">"</TbBtn>
         <TbBtn action={() => e.chain().focus().toggleCode().run()} isActive={e.isActive('code')} title="Kode">{'`'}</TbBtn>
         <Sep />
-        <TbBtn action={() => e.chain().focus().undo().run()} title="Undo">↩</TbBtn>
-        <TbBtn action={() => e.chain().focus().redo().run()} title="Redo">↪</TbBtn>
+        <TbBtn action={() => e.chain().focus().undo().run()} title="Urungkan">↩</TbBtn>
+        <TbBtn action={() => e.chain().focus().redo().run()} title="Ulangi">↪</TbBtn>
       </div>
 
       {/* Editor body */}
@@ -293,13 +516,13 @@ function UrlPreview({ url }) {
   if (ytMatch) {
     return (
       <div className="url-preview-box">
-        <img src={`https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`} alt="YouTube thumbnail" className="url-preview-thumb" />
-        <div className="url-preview-label"><Film size={12} /> YouTube Video</div>
+        <img src={`https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`} alt="Thumbnail YouTube" className="url-preview-thumb" />
+        <div className="url-preview-label"><Film size={12} /> Video YouTube</div>
       </div>
     );
   }
   if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(parsed.pathname)) {
-    return <div className="url-preview-box"><img src={url} alt="Preview" className="url-preview-thumb" /></div>;
+  return <div className="url-preview-box"><img src={url} alt="Pratinjau" className="url-preview-thumb" /></div>;
   }
   return (
     <div className="url-preview-box url-preview-link">
@@ -312,63 +535,122 @@ function UrlPreview({ url }) {
   );
 }
 
-// ── File preview ───────────────────────────────────────────────────────────────
-
-function FilePreviewBlock({ src, name }) {
-  const t = guessMediaType(src);
-  if (t === 'image') return <img src={src} alt={name} style={{ maxHeight: 130, maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />;
-  if (t === 'video') return <video src={src} controls style={{ maxHeight: 130, maxWidth: '100%', borderRadius: 4 }} />;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 4 }}>
-      <FileText size={18} style={{ color: 'var(--fg-3)' }} />
-      <span style={{ fontSize: 12, color: 'var(--fg-2)' }}>{name || src.split('/').pop()}</span>
-    </div>
-  );
-}
-
 // ── Asset form modal ───────────────────────────────────────────────────────────
 
-function AssetModal({ asset, categories, onClose, onSuccess }) {
+export function AssetModal({ asset, categories, opds = [], onClose, onSuccess }) {
   const isEdit = !!asset;
+  const initialSources = () => {
+    if (isEdit && Array.isArray(asset.sources) && asset.sources.length > 0) {
+      return asset.sources.map((source) => ({
+        uid: `existing-${source.id ?? source.file_path}`,
+        mode: source.is_upload ? 'existing' : 'url',
+        url: source.is_upload ? '' : (source.file_path ?? ''),
+        file_path: source.file_path ?? '',
+        name: source.original_name || source.file_path?.split('/').pop() || 'Dokumen',
+      }));
+    }
+
+    if (isEdit && asset.file_path) {
+      return [{
+        uid: `existing-${asset.file_path}`,
+        mode: asset.is_upload ? 'existing' : 'url',
+        url: asset.is_upload ? '' : asset.file_path,
+        file_path: asset.file_path,
+        name: asset.file_path.split('/').pop() || 'Dokumen',
+      }];
+    }
+
+    return [{ uid: `url-${Date.now()}`, mode: 'url', url: '' }];
+  };
+
   const [form, setForm]     = useState(isEdit
-    ? { title: asset.title, visibility: asset.visibility ?? 'internal', category_ids: asset.category_ids?.map(Number) ?? [], file_path: asset.file_path ?? '' }
+    ? {
+      title: asset.title,
+      visibility: asset.visibility ?? 'internal',
+      internal_scope: asset.internal_scope ?? 'all',
+      opd_ids: asset.opd_ids?.map(Number) ?? [],
+      category_ids: asset.category_ids?.map(Number) ?? [],
+      file_path: asset.file_path ?? '',
+    }
     : EMPTY_FORM,
   );
   const [description, setDescription] = useState(isEdit ? (asset.description ?? '') : '');
   const [editorKey]   = useState(() => Math.random());
-  const [inputMode, setInputMode]     = useState(isEdit && asset.is_upload ? 'file' : 'url');
-  const [file, setFile]               = useState(null);
-  const [filePreviewUrl, setFilePreviewUrl] = useState(isEdit && asset.is_upload ? (asset.file_url ?? null) : null);
-  const [isDragging, setIsDragging]   = useState(false);
+  const [sourceItems, setSourceItems] = useState(initialSources);
   const [fileError, setFileError]     = useState('');
+  const [showOpdPicker, setShowOpdPicker] = useState(false);
   const fileRef = useRef(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const selectedOpdNames = opds
+    .filter((opd) => form.opd_ids.includes(opd.id))
+    .map((opd) => opd.name);
 
-  useEffect(() => {
-    if (!file) return undefined;
-    const url = URL.createObjectURL(file);
-    setFilePreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  const pickFile = (f) => {
-    if (!f) return;
-    if (f.size > MAX_FILE_BYTES) { setFileError(`File terlalu besar (${(f.size / 1024 / 1024).toFixed(1)} MB). Maks. 50 MB.`); return; }
-    setFileError('');
-    setFile(f);
+  const addUrlSource = () => {
+    setSourceItems((items) => [...items, { uid: `url-${Date.now()}-${items.length}`, mode: 'url', url: '' }]);
   };
 
-  const clearFile = () => { setFile(null); setFilePreviewUrl(null); setFileError(''); if (fileRef.current) fileRef.current.value = ''; };
+  const pickFiles = (files) => {
+    const selected = Array.from(files ?? []);
+    if (selected.length === 0) return;
+
+    const oversized = selected.find((item) => item.size > MAX_FILE_BYTES);
+    if (oversized) {
+      setFileError(`Berkas "${oversized.name}" terlalu besar (${(oversized.size / 1024 / 1024).toFixed(1)} MB). Maks. 50 MB.`);
+      return;
+    }
+
+    setFileError('');
+    setSourceItems((items) => [
+      ...items,
+      ...selected.map((item, index) => ({
+        uid: `file-${Date.now()}-${index}`,
+        mode: 'file',
+        file: item,
+        name: item.name,
+      })),
+    ]);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const updateSource = (uid, value) => {
+    setSourceItems((items) => items.map((item) => (item.uid === uid ? { ...item, ...value } : item)));
+  };
+
+  const removeSource = (uid) => {
+    setSourceItems((items) => items.filter((item) => item.uid !== uid));
+  };
+
+  const validSourceItems = sourceItems.filter((item) => {
+    if (item.mode === 'url') return item.url?.trim();
+    if (item.mode === 'file') return item.file;
+    if (item.mode === 'existing') return item.file_path;
+    return false;
+  });
 
   const buildPayload = () => {
     const fd = new FormData();
     fd.append('title',       form.title.trim());
     fd.append('description', description);
     fd.append('visibility',  form.visibility);
+    fd.append('internal_scope', form.visibility === 'internal' ? form.internal_scope : 'all');
     form.category_ids.forEach((id) => fd.append('category_ids[]', id));
-    if (inputMode === 'file' && file) fd.append('file', file);
-    else if (inputMode === 'url')    fd.append('file_path', form.file_path.trim());
+    if (form.visibility === 'internal' && form.internal_scope === 'selected') {
+      form.opd_ids.forEach((id) => fd.append('opd_ids[]', id));
+    }
+    validSourceItems.forEach((item) => {
+      if (item.mode === 'url') {
+        fd.append('source_urls[]', item.url.trim());
+      } else if (item.mode === 'file') {
+        fd.append('source_files[]', item.file);
+      } else if (item.mode === 'existing') {
+        fd.append('source_existing_paths[]', item.file_path);
+        fd.append('source_existing_names[]', item.name ?? '');
+      }
+    });
+    const primary = validSourceItems[0];
+    if (primary?.mode === 'url') fd.append('file_path', primary.url.trim());
+    if (primary?.mode === 'existing') fd.append('file_path', primary.file_path);
     return fd;
   };
 
@@ -383,24 +665,28 @@ function AssetModal({ asset, categories, onClose, onSuccess }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    if (inputMode === 'url' && (!form.file_path.trim() || !isValidUrl(form.file_path.trim()))) {
-      toast.error('Masukkan URL yang valid (contoh: https://…)'); return;
+    const invalidUrl = sourceItems.find((item) => item.mode === 'url' && item.url?.trim() && !isValidUrl(item.url.trim()));
+    if (invalidUrl) {
+      toast.error('Masukkan tautan sumber dokumen yang valid (contoh: https://...)'); return;
     }
-    if (inputMode === 'file' && !file && !filePreviewUrl) {
-      toast.error('Pilih file untuk diunggah.'); return;
+    if (validSourceItems.length === 0) {
+      toast.error('Tambahkan minimal satu tautan atau berkas sumber dokumen.'); return;
+    }
+    if (form.visibility === 'internal' && form.internal_scope === 'selected' && form.opd_ids.length === 0) {
+      toast.error('Pilih minimal satu OPD untuk visibilitas internal terbatas.'); return;
     }
     saveMut.mutate(buildPayload());
   };
 
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box" role="dialog" aria-modal="true" style={{ maxWidth: 720, width: '95vw' }}>
+      <div className="modal-box kms-asset-modal" role="dialog" aria-modal="true" style={{ maxWidth: 720, width: '95vw' }}>
         <div className="modal-head">
-          <h2>{isEdit ? 'Edit Aset' : 'Kontribusi Aset Pengetahuan'}</h2>
+          <h2>{isEdit ? 'Ubah Aset' : 'Kontribusi Aset Pengetahuan'}</h2>
           <button className="icon-action" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
         </div>
 
-        <form className="modal-body" onSubmit={handleSubmit} style={{ display: 'grid', gap: 18 }}>
+        <form className="modal-body kms-asset-modal-body" onSubmit={handleSubmit} style={{ display: 'grid', gap: 18 }}>
 
           {/* Row 1: two columns — basic fields | source */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
@@ -436,73 +722,87 @@ function AssetModal({ asset, categories, onClose, onSuccess }) {
 
               <div className="fm-field">
                 <span>Visibilitas</span>
-                <VisibilityControl value={form.visibility} onChange={(v) => set('visibility', v)} />
+                <VisibilityControl
+                  value={form.visibility}
+                  internalScope={form.internal_scope}
+                  internalOpdCount={form.opd_ids.length}
+                  onChange={(v) => set('visibility', v)}
+                  onInternalScopeChange={(scope) => setForm((f) => ({ ...f, internal_scope: scope, opd_ids: scope === 'all' ? [] : f.opd_ids }))}
+                  onOpenOpdPicker={() => setShowOpdPicker(true)}
+                />
                 <p style={{ margin: '5px 0 0', fontSize: 11, color: 'var(--fg-3)' }}>
                   {form.visibility === 'internal'
-                    ? 'Hanya terlihat oleh pengguna dalam organisasi.'
+                    ? `Cakupan: ${form.internal_scope === 'selected' ? `OPD tertentu (${form.opd_ids.length} dipilih)` : 'Semua OPD'}.`
                     : 'Dapat diakses oleh seluruh pengguna platform.'}
                 </p>
               </div>
+
             </div>
 
-            {/* Right: source (URL / upload) */}
+            {/* Right: source */}
             <div className="fm-field">
               <span>Sumber Dokumen <em style={{ color: '#dc2626', fontStyle: 'normal' }}>*</em></span>
 
-              <div className="material-mode-tabs" style={{ marginTop: 6 }}>
-                <button type="button" className={`material-mode-tab${inputMode === 'url' ? ' active' : ''}`}
-                  onClick={() => { setInputMode('url'); clearFile(); }}>
-                  <Link size={12} /> URL / Tautan
-                </button>
-                <button type="button" className={`material-mode-tab${inputMode === 'file' ? ' active' : ''}`}
-                  onClick={() => setInputMode('file')}>
-                  <Upload size={12} /> Unggah File
-                </button>
-              </div>
-
-              {inputMode === 'url' && (
-                <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
+              <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button type="button" className="outline-button compact" onClick={addUrlSource}>
+                    <Link size={12} /> Tambah Tautan
+                  </button>
+                  <button type="button" className="outline-button compact" onClick={() => fileRef.current?.click()}>
+                    <Upload size={12} /> Pilih Berkas
+                  </button>
                   <input
-                    type="url"
-                    value={form.file_path}
-                    onChange={(e) => set('file_path', e.target.value)}
-                    placeholder="https://drive.google.com/…"
-                    maxLength={255}
-                    style={{ border: '1px solid var(--border)', padding: '9px 11px', width: '100%', background: '#fff', color: 'var(--fg)', font: 'inherit', outline: 'none', boxSizing: 'border-box', borderRadius: 4 }}
+                    ref={fileRef}
+                    type="file"
+                    multiple
+                    style={{ display: 'none' }}
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov"
+                    onChange={(e) => pickFiles(e.target.files)}
                   />
-                  <UrlPreview url={form.file_path} />
                 </div>
-              )}
 
-              {inputMode === 'file' && (
-                <div className="material-file-area" style={{ marginTop: 4 }}>
-                  {filePreviewUrl ? (
-                    <div className="material-file-preview">
-                      <FilePreviewBlock src={filePreviewUrl} name={file?.name ?? ''} />
-                      <button type="button" className="material-file-clear" onClick={clearFile}>
-                        <X size={12} /> Hapus file
+                {sourceItems.length === 0 && (
+                  <div style={{ padding: '10px 12px', border: '1px dashed var(--border)', borderRadius: 6, color: 'var(--fg-3)', fontSize: 12 }}>
+                    Belum ada sumber dokumen.
+                  </div>
+                )}
+
+                {sourceItems.map((item, index) => (
+                  <div key={item.uid} style={{ display: 'grid', gap: 6, padding: '8px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ flexShrink: 0, width: 22, height: 22, display: 'grid', placeItems: 'center', borderRadius: 999, background: '#fff', border: '1px solid var(--border)', color: 'var(--fg-3)', fontSize: 11, fontWeight: 700 }}>
+                        {index + 1}
+                      </span>
+                      {item.mode === 'url' ? (
+                        <input
+                          type="url"
+                          value={item.url}
+                          onChange={(e) => updateSource(item.uid, { url: e.target.value })}
+                          placeholder="https://drive.google.com/..."
+                          maxLength={255}
+                          style={{ flex: 1, minWidth: 0, border: '1px solid var(--border)', padding: '7px 9px', background: '#fff', color: 'var(--fg)', font: 'inherit', fontSize: 12, outline: 'none', boxSizing: 'border-box', borderRadius: 4 }}
+                        />
+                      ) : (
+                        <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', color: 'var(--fg-2)', fontSize: 12 }}>
+                          <FileText size={14} style={{ flexShrink: 0, color: 'var(--fg-3)' }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.name || 'Dokumen'}
+                          </span>
+                        </span>
+                      )}
+                      <button type="button" className="icon-action danger-icon" title="Hapus sumber" onClick={() => removeSource(item.uid)}>
+                        <X size={13} />
                       </button>
                     </div>
-                  ) : (
-                    <label
-                      className={`material-upload-zone${isDragging ? ' drag-over' : ''}${fileError ? ' upload-error' : ''}`}
-                      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                      onDragLeave={() => setIsDragging(false)}
-                      onDrop={(e) => { e.preventDefault(); setIsDragging(false); pickFile(e.dataTransfer.files[0]); }}
-                    >
-                      <Upload size={20} />
-                      <span>Seret file ke sini atau <em>klik untuk memilih</em></span>
-                      <small>PDF, Dokumen, Gambar, Video — Maks. 50 MB</small>
-                      <input
-                        ref={fileRef} type="file" style={{ display: 'none' }}
-                        accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov"
-                        onChange={(e) => pickFile(e.target.files[0])}
-                      />
-                    </label>
-                  )}
-                  {fileError && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#dc2626' }}>{fileError}</p>}
-                </div>
-              )}
+                    {item.mode === 'url' && <UrlPreview url={item.url} />}
+                  </div>
+                ))}
+
+                {fileError && <p style={{ margin: 0, fontSize: 12, color: '#dc2626' }}>{fileError}</p>}
+                <small style={{ fontSize: 10, color: 'var(--fg-3)' }}>
+                  Bisa berisi beberapa tautan dan/atau berkas. Maks. 50 MB per berkas.
+                </small>
+              </div>
 
               {/* Type indicators */}
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 10 }}>
@@ -512,6 +812,14 @@ function AssetModal({ asset, categories, onClose, onSuccess }) {
                   </span>
                 ))}
               </div>
+
+              {form.visibility === 'internal' && form.internal_scope === 'selected' && (
+                <SelectedOpdSummary
+                  count={form.opd_ids.length}
+                  names={selectedOpdNames}
+                  onEdit={() => setShowOpdPicker(true)}
+                />
+              )}
             </div>
           </div>
 
@@ -521,7 +829,7 @@ function AssetModal({ asset, categories, onClose, onSuccess }) {
             <RichEditor value={description} onChange={setDescription} editorKey={editorKey} />
           </div>
 
-          <div className="modal-foot" style={{ marginTop: 4 }}>
+          <div className="modal-foot kms-asset-modal-foot" style={{ marginTop: 4 }}>
             <button type="button" className="outline-button compact" onClick={onClose}>Batal</button>
             <button type="submit" className="primary-button compact" disabled={saveMut.isPending}>
               {saveMut.isPending ? 'Menyimpan…' : isEdit ? 'Simpan Perubahan' : 'Kontribusikan'}
@@ -529,6 +837,15 @@ function AssetModal({ asset, categories, onClose, onSuccess }) {
           </div>
         </form>
       </div>
+
+      {showOpdPicker && (
+        <OpdScopeModal
+          opds={opds}
+          value={form.opd_ids}
+          onClose={() => setShowOpdPicker(false)}
+          onApply={(ids) => set('opd_ids', ids)}
+        />
+      )}
     </div>
   );
 }
@@ -564,6 +881,10 @@ function DeleteModal({ asset, onClose, onConfirm, isPending }) {
 function AssetCard({ asset, onEdit, onDelete }) {
   const VisIcon = asset.visibility === 'public' ? Globe : Lock;
   const plainDesc = stripHtml(asset.description ?? '');
+  const [previewTarget, setPreviewTarget] = useState(null);
+  const sources = asset.sources?.length
+    ? asset.sources
+    : (asset.file_url ? [{ file_url: asset.file_url, is_upload: asset.is_upload, original_name: asset.is_upload ? 'Berkas' : 'Dokumen' }] : []);
 
   return (
     <div className="material-card">
@@ -597,11 +918,17 @@ function AssetCard({ asset, onEdit, onDelete }) {
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
-          {asset.file_url && (
-            <a href={asset.file_url} target="_blank" rel="noreferrer" className="material-card-link">
-              <ExternalLink size={10} /> {asset.is_upload ? 'Unduh File' : 'Buka Dokumen'}
-            </a>
-          )}
+          {sources.map((source, index) => (
+            <button
+              key={source.id ?? `${source.file_url}-${index}`}
+              type="button"
+              className="material-card-link"
+              onClick={() => setPreviewTarget({ source, index })}
+              style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              <ExternalLink size={10} /> {sources.length > 1 ? `Sumber ${index + 1}` : (source.is_upload ? 'Unduh Berkas' : 'Buka Dokumen')}
+            </button>
+          ))}
           <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--fg-3)' }}>
             <User size={10} /> {asset.uploader_name}
           </span>
@@ -611,9 +938,17 @@ function AssetCard({ asset, onEdit, onDelete }) {
 
       {asset.is_mine && (
         <div className="material-card-actions">
-          <button className="icon-action" title="Edit" onClick={() => onEdit(asset)}><Pencil size={13} /></button>
+          <button className="icon-action" title="Ubah" onClick={() => onEdit(asset)}><Pencil size={13} /></button>
           <button className="icon-action danger-icon" title="Hapus" onClick={() => onDelete(asset)}><Trash2 size={13} /></button>
         </div>
+      )}
+      {previewTarget && (
+        <KmsSourcePreviewModal
+          asset={asset}
+          source={previewTarget.source}
+          index={previewTarget.index}
+          onClose={() => setPreviewTarget(null)}
+        />
       )}
     </div>
   );
@@ -645,8 +980,9 @@ function KmsAssetSkeleton() {
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
-export default function FacilitatorKmsContribution() {
+export default function FacilitatorKmsContribution({ session }) {
   const queryClient = useQueryClient();
+  const canCreate = getRoleNames(session?.user).includes('admin-opd');
   const [modal, setModal]               = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [activeTab, setActiveTab]       = useState('all');
@@ -698,8 +1034,8 @@ export default function FacilitatorKmsContribution() {
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Facilitator</p>
-        <h1>KMS Contribution</h1>
+        <p className="mono-kicker text-muted">Fasilitator</p>
+        <h1>Kontribusi KMS</h1>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -717,9 +1053,11 @@ export default function FacilitatorKmsContribution() {
             <span className="cp-stat-lbl">Milik Saya</span>
           </div>
         </div>
-        <button className="primary-button compact" onClick={() => setModal('create')}>
-          <Plus size={14} /> Kontribusi Aset
-        </button>
+        {canCreate && (
+          <button className="primary-button compact" onClick={() => setModal('create')}>
+            <Plus size={14} /> Kontribusi Aset
+          </button>
+        )}
       </div>
 
       <div className="att-toolbar" style={{ flexWrap: 'wrap', gap: 10 }}>
@@ -754,7 +1092,7 @@ export default function FacilitatorKmsContribution() {
               : activeTab === 'mine' ? 'Anda belum berkontribusi aset apapun.'
               : 'Belum ada aset KMS.'}
           </p>
-          {!search && activeTab !== 'mine' && <span>Jadilah yang pertama berkontribusi ke basis pengetahuan.</span>}
+          {!search && activeTab !== 'mine' && canCreate && <span>Jadilah yang pertama berkontribusi ke basis pengetahuan.</span>}
         </div>
       )}
 

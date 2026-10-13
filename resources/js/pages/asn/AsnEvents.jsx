@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
-  BookOpen, CalendarDays, CheckCircle2, Clock, LogIn,
-  MapPin, Loader2, Users, User,
+  BookOpen, CalendarDays, CheckCircle2, Clock, CreditCard,
+  Hourglass, LogIn, MapPin, Loader2, Tag, Users, User,
 } from 'lucide-react';
 import api from '../../api.js';
 
@@ -20,59 +21,86 @@ function formatDateRange(start, end) {
   return `${s} – ${e}`;
 }
 
+function formatPrice(price) {
+  return 'Rp ' + Number(price).toLocaleString('id-ID');
+}
+
 function isUpcoming(startDate) {
   if (!startDate) return false;
   const s = startDate.length > 10 ? startDate.substring(0, 10) : startDate;
   return new Date(`${s}T00:00`) > new Date();
 }
 
-/* ── tab button ─────────────────────────────────────────── */
+/* ── Midtrans Snap loader ───────────────────────────────────── */
+function useSnapJs() {
+  const { data: config } = useQuery({
+    queryKey: ['payment-config'],
+    queryFn: () => api.get('/payment/config').then((r) => r.data.data),
+    staleTime: Infinity,
+  });
+
+  useEffect(() => {
+    if (!config?.client_key) return;
+    if (document.getElementById('midtrans-snap-js')) return;
+    const src = config.is_production
+      ? 'https://app.midtrans.com/snap/snap.js'
+      : 'https://app.sandbox.midtrans.com/snap/snap.js';
+    const script = document.createElement('script');
+    script.id = 'midtrans-snap-js';
+    script.src = src;
+    script.setAttribute('data-client-key', config.client_key);
+    document.head.appendChild(script);
+  }, [config]);
+
+  return config;
+}
+
+/* ── tab button ─────────────────────────────────────────────── */
 function TabBtn({ active, onClick, children, count }) {
   return (
-    <button
-      className={`ev-tab${active ? ' active' : ''}`}
-      onClick={onClick}
-      type="button"
-    >
+    <button className={`ev-tab${active ? ' active' : ''}`} onClick={onClick} type="button">
       {children}
       {count != null && <span className="ev-tab-count">{count}</span>}
     </button>
   );
 }
 
-/* ── single event card ──────────────────────────────────── */
-function EventCard({ event, onEnroll, isEnrolling, onEnter }) {
-  const upcoming = isUpcoming(event.start_date);
-  const enrolled = event.is_enrolled;
+/* ── single event card ──────────────────────────────────────── */
+function EventCard({ event, onEnroll, onPay, isEnrolling, isPaying, isAwaitingPayment, onEnter }) {
+  const upcoming  = isUpcoming(event.start_date);
+  const enrolled  = event.is_enrolled;
+  const isPaid    = event.is_paid;
   const spotsLeft = event.quota ? Math.max(0, event.quota - (event.participants_count ?? 0)) : null;
-  const full = event.quota > 0 && spotsLeft === 0;
-
+  const full      = event.quota > 0 && spotsLeft === 0;
   const stateClass = enrolled ? 'enrolled' : upcoming ? 'upcoming' : 'ongoing';
 
   return (
     <div className={`ev-card ${stateClass}`}>
-      {/* status chip */}
+      {/* header */}
       <div className="ev-card-head">
         <h3 className="ev-card-title">{event.title}</h3>
-        <span className={`ev-chip ${stateClass}`}>
-          {enrolled
-            ? <><CheckCircle2 size={11} /> Terdaftar</>
-            : upcoming
-            ? <><Clock size={11} /> Mendatang</>
-            : <><BookOpen size={11} /> Berlangsung</>}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <span className={`ev-chip ${stateClass}`}>
+            {enrolled
+              ? <><CheckCircle2 size={11} /> Terdaftar</>
+              : upcoming
+              ? <><Clock size={11} /> Mendatang</>
+              : <><BookOpen size={11} /> Berlangsung</>}
+          </span>
+          <span className={`ev-price-badge${isPaid ? ' paid' : ' free'}`}>
+            {isPaid ? <><CreditCard size={10} /> {formatPrice(event.price)}</> : <><Tag size={10} /> Gratis</>}
+          </span>
+        </div>
       </div>
 
-      {/* meta row */}
+      {/* meta */}
       <div className="ev-meta-row">
         <span className="ev-meta-chip">
           <CalendarDays size={11} />
           {formatDateRange(event.start_date, event.end_date)}
         </span>
         {event.location && (
-          <span className="ev-meta-chip">
-            <MapPin size={11} /> {event.location}
-          </span>
+          <span className="ev-meta-chip"><MapPin size={11} /> {event.location}</span>
         )}
         {(event.facilitators || []).length > 0 && (
           <span className="ev-meta-chip">
@@ -88,9 +116,7 @@ function EventCard({ event, onEnroll, isEnrolling, onEnter }) {
         )}
       </div>
 
-      {event.description && (
-        <p className="ev-card-desc">{event.description}</p>
-      )}
+      {event.description && <p className="ev-card-desc">{event.description}</p>}
 
       {/* action */}
       <div className="ev-card-foot">
@@ -101,10 +127,23 @@ function EventCard({ event, onEnroll, isEnrolling, onEnter }) {
         ) : !upcoming ? (
           <span className="ev-chip ongoing">Berlangsung</span>
         ) : enrolled ? (
-          <span className="ev-enrolled-label">
-            <CheckCircle2 size={14} /> Sudah terdaftar
+          <span className="ev-enrolled-label"><CheckCircle2 size={14} /> Sudah terdaftar</span>
+        ) : full ? (
+          <span className="ev-chip danger">Kuota Penuh</span>
+        ) : isAwaitingPayment ? (
+          <span className="ev-awaiting-label">
+            <Hourglass size={13} className="spin-slow" /> Menunggu konfirmasi pembayaran…
           </span>
-        ) : !full ? (
+        ) : isPaid ? (
+          <button
+            className="primary-button compact ev-pay-btn"
+            disabled={isPaying}
+            onClick={() => onPay(event.uuid)}
+          >
+            {isPaying ? <Loader2 size={13} className="spin" /> : <CreditCard size={13} />}
+            {isPaying ? 'Memproses…' : `Bayar & Daftar · ${formatPrice(event.price)}`}
+          </button>
+        ) : (
           <button
             className="primary-button compact"
             disabled={isEnrolling}
@@ -113,8 +152,6 @@ function EventCard({ event, onEnroll, isEnrolling, onEnter }) {
             {isEnrolling ? <Loader2 size={13} className="spin" /> : null}
             {isEnrolling ? 'Mendaftar…' : 'Daftar Sekarang'}
           </button>
-        ) : (
-          <span className="ev-chip danger">Kuota Penuh</span>
         )}
       </div>
     </div>
@@ -150,9 +187,7 @@ function AsnEventsSkeleton() {
             </div>
             <Skel w="88%" h={12} style={{ marginTop: 10 }} />
             <Skel w="72%" h={12} />
-            <div className="ev-card-foot">
-              <Skel w={106} h={32} style={{ borderRadius: 6 }} />
-            </div>
+            <div className="ev-card-foot"><Skel w={106} h={32} style={{ borderRadius: 6 }} /></div>
           </div>
         ))}
       </div>
@@ -160,13 +195,20 @@ function AsnEventsSkeleton() {
   );
 }
 
-/* ── main page ──────────────────────────────────────────── */
+const POLL_INTERVAL_MS = 3000;
+const POLL_MAX_ATTEMPTS = 20; // 60s total
+
+/* ── main page ──────────────────────────────────────────────── */
 export default function AsnEvents() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [enrollingUuid, setEnrollingUuid] = useState(null);
-  const [enrollError, setEnrollError] = useState(null);
+  const navigate      = useNavigate();
+  const queryClient   = useQueryClient();
+  const snapConfig    = useSnapJs();
+  const [enrollingUuid,  setEnrollingUuid]  = useState(null);
+  const [payingUuid,     setPayingUuid]     = useState(null);
+  const [awaitingUuids,  setAwaitingUuids]  = useState(new Set());
+  const [enrollError,    setEnrollError]    = useState(null);
   const [tab, setTab] = useState('all');
+  const pollTimers = useRef({});
 
   const { data: eventsData, isLoading, isError } = useQuery({
     queryKey: ['training-events'],
@@ -174,6 +216,7 @@ export default function AsnEvents() {
   });
   const events = eventsData || [];
 
+  /* ── free enroll ──────────────────────────────────────────── */
   const enrollMutation = useMutation({
     mutationFn: (uuid) => api.post(`/training-events/${uuid}/enroll`),
     onSuccess: () => {
@@ -181,6 +224,7 @@ export default function AsnEvents() {
       queryClient.invalidateQueries({ queryKey: ['asn-assigned-events-count'] });
       setEnrollingUuid(null);
       setEnrollError(null);
+      toast.success('Berhasil mendaftar ke kegiatan pelatihan!');
     },
     onError: (err) => {
       setEnrollError(err.response?.data?.message || 'Gagal mendaftar. Coba lagi.');
@@ -192,6 +236,92 @@ export default function AsnEvents() {
     setEnrollingUuid(uuid);
     setEnrollError(null);
     enrollMutation.mutate(uuid);
+  };
+
+  /* ── payment status polling ──────────────────────────────── */
+  const stopPolling = useCallback((uuid) => {
+    clearTimeout(pollTimers.current[uuid]);
+    delete pollTimers.current[uuid];
+    setAwaitingUuids((prev) => { const s = new Set(prev); s.delete(uuid); return s; });
+  }, []);
+
+  const startPolling = useCallback((uuid) => {
+    if (pollTimers.current[uuid]) return;
+    setAwaitingUuids((prev) => new Set([...prev, uuid]));
+
+    let attempts = 0;
+
+    const poll = async () => {
+      attempts++;
+      try {
+        const res = await api.get(`/training-events/${uuid}/payment/status`);
+        const { status } = res.data.data;
+
+        if (status === 'paid') {
+          queryClient.invalidateQueries({ queryKey: ['training-events'] });
+          queryClient.invalidateQueries({ queryKey: ['asn-assigned-events-count'] });
+          toast.success('Pembayaran dikonfirmasi! Anda telah terdaftar di kegiatan pelatihan.');
+          stopPolling(uuid);
+          return;
+        }
+
+        if (attempts < POLL_MAX_ATTEMPTS && status === 'pending') {
+          pollTimers.current[uuid] = setTimeout(poll, POLL_INTERVAL_MS);
+        } else {
+          stopPolling(uuid);
+        }
+      } catch {
+        stopPolling(uuid);
+      }
+    };
+
+    pollTimers.current[uuid] = setTimeout(poll, 2000);
+  }, [queryClient, stopPolling]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    const timers = pollTimers.current;
+    return () => Object.values(timers).forEach(clearTimeout);
+  }, []);
+
+  /* ── paid enroll via Midtrans Snap ───────────────────────── */
+  const handlePay = async (uuid) => {
+    setPayingUuid(uuid);
+    setEnrollError(null);
+    try {
+      const res = await api.post(`/training-events/${uuid}/payment/initiate`);
+      const { snap_token } = res.data.data;
+
+      if (!window.snap) {
+        toast.error('Gerbang pembayaran belum siap. Muat ulang halaman dan coba lagi.');
+        setPayingUuid(null);
+        return;
+      }
+
+      window.snap.pay(snap_token, {
+        onSuccess() {
+          setPayingUuid(null);
+          startPolling(uuid);
+        },
+        onPending() {
+          toast.info('Pembayaran sedang diproses. Status akan diperbarui otomatis.');
+          setPayingUuid(null);
+          startPolling(uuid);
+        },
+        onError(result) {
+          toast.error('Pembayaran gagal: ' + (result?.status_message || 'Coba lagi.'));
+          setPayingUuid(null);
+        },
+        onClose() {
+          // Pengguna menutup popup; instruksi VA mungkin sudah selesai.
+          setPayingUuid(null);
+          startPolling(uuid);
+        },
+      });
+    } catch (err) {
+      setEnrollError(err.response?.data?.message || 'Gagal memulai pembayaran. Coba lagi.');
+      setPayingUuid(null);
+    }
   };
 
   const upcoming = events.filter((e) => isUpcoming(e.start_date));
@@ -206,21 +336,19 @@ export default function AsnEvents() {
 
   return (
     <div className="page-stack">
-      {/* ── header ──────────────────────────────────────── */}
       <div className="page-head">
         <p className="mono-kicker text-muted">Pelatihan</p>
-        <h1>Training Events</h1>
+        <h1>Kegiatan Pelatihan</h1>
       </div>
 
       {enrollError && <div className="form-error-visible">{enrollError}</div>}
 
-      {/* ── KPI strip ───────────────────────────────────── */}
       {!isLoading && !isError && (
         <div className="ev-kpi-row">
           <div className="enterprise-card ev-kpi-card">
             <p className="mono-kicker text-muted">Total</p>
             <p className="ev-kpi-val">{events.length}</p>
-            <p className="ev-kpi-sub">event tersedia</p>
+            <p className="ev-kpi-sub">kegiatan tersedia</p>
           </div>
           <div className="enterprise-card ev-kpi-card">
             <p className="mono-kicker text-muted" style={{ color: 'var(--sky)' }}>Mendatang</p>
@@ -240,7 +368,6 @@ export default function AsnEvents() {
         </div>
       )}
 
-      {/* ── filter tabs ─────────────────────────────────── */}
       {!isLoading && !isError && events.length > 0 && (
         <div className="ev-tab-bar">
           <TabBtn active={tab === 'all'}      onClick={() => setTab('all')}      count={events.length}>Semua</TabBtn>
@@ -250,17 +377,15 @@ export default function AsnEvents() {
         </div>
       )}
 
-      {/* ── state messages ──────────────────────────────── */}
       {isLoading && <AsnEventsSkeleton />}
       {isError   && <div className="form-error-visible">Gagal memuat data. Pastikan Anda sudah login dan memiliki akses.</div>}
       {!isLoading && !isError && events.length === 0 && (
-        <div className="resource-note">Belum ada event pelatihan yang tersedia saat ini.</div>
+        <div className="resource-note">Belum ada kegiatan pelatihan yang tersedia saat ini.</div>
       )}
       {!isLoading && !isError && events.length > 0 && filtered.length === 0 && (
-        <div className="resource-note">Tidak ada event untuk filter ini.</div>
+        <div className="resource-note">Tidak ada kegiatan untuk filter ini.</div>
       )}
 
-      {/* ── event grid ──────────────────────────────────── */}
       {!isLoading && !isError && filtered.length > 0 && (
         <div className="ev-grid">
           {filtered.map((event) => (
@@ -268,7 +393,10 @@ export default function AsnEvents() {
               key={event.uuid}
               event={event}
               onEnroll={handleEnroll}
+              onPay={handlePay}
               isEnrolling={enrollingUuid === event.uuid}
+              isPaying={payingUuid === event.uuid}
+              isAwaitingPayment={awaitingUuids.has(event.uuid)}
               onEnter={(uuid) => navigate(`/training-events/${uuid}/learn`)}
             />
           ))}

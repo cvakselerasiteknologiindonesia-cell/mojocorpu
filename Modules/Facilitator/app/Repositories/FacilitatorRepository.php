@@ -15,6 +15,13 @@ class FacilitatorRepository
             'internal' => Facilitator::where('facilitator_type', 'internal')->count(),
             'external' => Facilitator::where('facilitator_type', 'external')->count(),
             'active'   => Facilitator::where('status', 'active')->count(),
+            'inactive' => Facilitator::where('status', '!=', 'active')->count(),
+            'without_expertise' => Facilitator::where(function ($q) {
+                $q->whereNull('expertise')->orWhere('expertise', '');
+            })->count(),
+            'without_institution' => Facilitator::where(function ($q) {
+                $q->whereNull('institution')->orWhere('institution', '');
+            })->count(),
         ];
     }
 

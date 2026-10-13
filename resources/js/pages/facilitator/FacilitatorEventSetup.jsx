@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { safe } from '../../utils/sanitize.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlignLeft,
@@ -42,11 +43,12 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { toast } from 'sonner';
 import api from '../../api.js';
+import { getRoleNames, hasAnyPermission } from '../../utils/permissions.js';
+import { loadXlsx } from '../../utils/xlsx.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -206,13 +208,14 @@ function SetupSection({ icon: Icon, title, count, accent, children }) {
 
 // ── Learning Path (sessions) ──────────────────────────────────────────────────
 
-const EMPTY_SESSION = { title: '', description: '', order: '', duration_minutes: '', start_date: '', end_date: '', status: 'draft' };
+const EMPTY_SESSION = { title: '', description: '', order: '', duration_minutes: '', start_date: '', end_date: '', status: 'active' };
 
 function SessionsSection({ uuid, eventStart, eventEnd }) {
   const queryClient = useQueryClient();
   const qk = ['event-sessions', uuid];
   const [formModal, setFormModal] = useState(null);
   const [form, setForm] = useState(EMPTY_SESSION);
+  const [overlapError, setOverlapError] = useState(null);
 
   const { data = [], isLoading } = useQuery({
     queryKey: qk,
@@ -233,9 +236,23 @@ function SessionsSection({ uuid, eventStart, eventEnd }) {
     return diff > 0 ? String(diff) : '';
   };
 
-  const openCreate = () => { createMut.reset(); setForm(EMPTY_SESSION); setFormModal({ type: 'create' }); };
+  const checkOverlap = (startDate, endDate, excludeId = null) => {
+    if (!startDate || !endDate) return null;
+    const newStart = new Date(startDate).getTime();
+    const newEnd = new Date(endDate).getTime();
+    return data.find((s) => {
+      if (s.id === excludeId) return false;
+      if (!s.start_date || !s.end_date) return false;
+      const sStart = new Date(s.start_date).getTime();
+      const sEnd = new Date(s.end_date).getTime();
+      return newStart < sEnd && newEnd > sStart;
+    }) || null;
+  };
+
+  const openCreate = () => { createMut.reset(); setOverlapError(null); setForm(EMPTY_SESSION); setFormModal({ type: 'create' }); };
   const openEdit = (s) => {
     updateMut.reset();
+    setOverlapError(null);
     const start = s.start_date ? s.start_date.substring(0, 16) : '';
     const end   = s.end_date   ? s.end_date.substring(0, 16)   : '';
     setForm({ title: s.title, description: s.description || '', order: s.order?.toString() || '', duration_minutes: calcDuration(start, end) || s.duration_minutes?.toString() || '', start_date: start, end_date: end, status: s.status });
@@ -244,6 +261,13 @@ function SessionsSection({ uuid, eventStart, eventEnd }) {
 
   const submit = () => {
     if (!form.title.trim()) return;
+    const editingId = formModal.type === 'edit' ? formModal.id : null;
+    const conflict = checkOverlap(form.start_date, form.end_date, editingId);
+    if (conflict) {
+      setOverlapError(`Jadwal bertabrakan dengan sesi "${conflict.title}". Sesi tidak boleh tumpang tindih.`);
+      return;
+    }
+    setOverlapError(null);
     const payload = { title: form.title, description: form.description || null, order: parseInt(form.order, 10) || 1, duration_minutes: parseInt(form.duration_minutes, 10) || null, start_date: form.start_date || null, end_date: form.end_date || null, status: form.status };
     if (formModal.type === 'edit') updateMut.mutate({ id: formModal.id, ...payload });
     else createMut.mutate(payload);
@@ -295,12 +319,37 @@ function SessionsSection({ uuid, eventStart, eventEnd }) {
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <FormField label="Mulai Sesi">
-              <input type="datetime-local" value={form.start_date} onChange={(e) => setForm((c) => ({ ...c, start_date: e.target.value, duration_minutes: calcDuration(e.target.value, c.end_date) }))} />
+              <input
+                type="datetime-local"
+                value={form.start_date}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((c) => ({ ...c, start_date: val, duration_minutes: calcDuration(val, c.end_date) }));
+                  const editingId = formModal?.type === 'edit' ? formModal.id : null;
+                  const conflict = checkOverlap(val, form.end_date, editingId);
+                  setOverlapError(conflict ? `Jadwal bertabrakan dengan sesi "${conflict.title}".` : null);
+                }}
+              />
             </FormField>
             <FormField label="Selesai Sesi">
-              <input type="datetime-local" value={form.end_date} onChange={(e) => setForm((c) => ({ ...c, end_date: e.target.value, duration_minutes: calcDuration(c.start_date, e.target.value) }))} />
+              <input
+                type="datetime-local"
+                value={form.end_date}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((c) => ({ ...c, end_date: val, duration_minutes: calcDuration(c.start_date, val) }));
+                  const editingId = formModal?.type === 'edit' ? formModal.id : null;
+                  const conflict = checkOverlap(form.start_date, val, editingId);
+                  setOverlapError(conflict ? `Jadwal bertabrakan dengan sesi "${conflict.title}".` : null);
+                }}
+              />
             </FormField>
           </div>
+          {overlapError && (
+            <div className="form-error-visible" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>⚠️</span> {overlapError}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <FormField label="Urutan">
               <input type="number" min="1" value={form.order} onChange={(e) => setForm((c) => ({ ...c, order: e.target.value }))} placeholder="1" />
@@ -322,7 +371,7 @@ function SessionsSection({ uuid, eventStart, eventEnd }) {
 
 // ── Learning Materials ────────────────────────────────────────────────────────
 
-const EMPTY_MATERIAL = { title: '', type: 'document', url: '', description: '', order: '' };
+const EMPTY_MATERIAL = { title: '', type: 'document', url: '', description: '', duration_minutes: '', order: '' };
 const MAX_FILE_BYTES = 1000 * 1024 * 1024; // 1000 MB
 
 function MaterialsSection({ uuid }) {
@@ -332,6 +381,7 @@ function MaterialsSection({ uuid }) {
   const [form, setForm] = useState(EMPTY_MATERIAL);
   const [inputMode, setInputMode] = useState('url'); // 'url' | 'file'
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [filePreviewUrl, setFilePreviewUrl] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState(null);
@@ -356,9 +406,14 @@ function MaterialsSection({ uuid }) {
     fd.append('title', form.title);
     fd.append('type', form.type);
     fd.append('description', form.description || '');
+    if (form.duration_minutes) fd.append('duration_minutes', parseInt(form.duration_minutes, 10));
     fd.append('order', parseInt(form.order, 10) || 1);
     if (inputMode === 'file' && selectedFile) {
-      fd.append('file', selectedFile);
+      if (formModal?.type === 'create' && selectedFiles.length > 0) {
+        selectedFiles.forEach((file) => fd.append('files[]', file));
+      } else {
+        fd.append('file', selectedFile);
+      }
     } else if (inputMode === 'url') {
       fd.append('url', form.url || '');
     }
@@ -385,15 +440,22 @@ function MaterialsSection({ uuid }) {
   const isSaving = createMut.isPending || updateMut.isPending;
   const saveError = createMut.error || updateMut.error;
 
-  const pickFile = (f) => {
-    if (!f) return;
-    if (f.size > MAX_FILE_BYTES) {
-      setFileError(`Ukuran file (${(f.size / 1024 / 1024).toFixed(1)} MB) melebihi batas maksimum 1000 MB.`);
+  const pickFiles = (fileList) => {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (files.length === 0) return;
+    const oversized = files.find((f) => f.size > MAX_FILE_BYTES);
+    if (oversized) {
+      setFileError(`Ukuran file "${oversized.name}" (${(oversized.size / 1024 / 1024).toFixed(1)} MB) melebihi batas maksimum 1000 MB.`);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     setFileError(null);
-    setSelectedFile(f);
+    setSelectedFiles(files);
+    setSelectedFile(files[0]);
+  };
+
+  const pickFile = (f) => {
+    pickFiles(f ? [f] : []);
   };
 
   const openCreate = () => {
@@ -401,6 +463,7 @@ function MaterialsSection({ uuid }) {
     setForm(EMPTY_MATERIAL);
     setInputMode('url');
     setSelectedFile(null);
+    setSelectedFiles([]);
     setFilePreviewUrl(null);
     setFileError(null);
     setFormModal({ type: 'create' });
@@ -408,9 +471,10 @@ function MaterialsSection({ uuid }) {
 
   const openEdit = (m) => {
     updateMut.reset();
-    setForm({ title: m.title, type: m.type, url: m.url || '', description: m.description || '', order: m.order?.toString() || '' });
+    setForm({ title: m.title, type: m.type, url: m.url || '', description: m.description || '', duration_minutes: m.duration_minutes?.toString() || '', order: m.order?.toString() || '' });
     setInputMode(m.file_url ? 'file' : 'url');
     setSelectedFile(null);
+    setSelectedFiles([]);
     setFilePreviewUrl(m.file_url || null);
     setFileError(null);
     setFormModal({ type: 'edit', id: m.id, hasFile: !!m.file_url, existingFileUrl: m.file_url });
@@ -418,6 +482,7 @@ function MaterialsSection({ uuid }) {
 
   const clearFile = () => {
     setSelectedFile(null);
+    setSelectedFiles([]);
     setFilePreviewUrl(null);
     setFileError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -426,7 +491,7 @@ function MaterialsSection({ uuid }) {
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    pickFile(e.dataTransfer.files[0]);
+    pickFiles(e.dataTransfer.files);
   };
 
   const submit = () => {
@@ -525,6 +590,11 @@ function MaterialsSection({ uuid }) {
               <FormField label="Urutan">
                 <input type="number" min="1" value={form.order} onChange={(e) => setForm((c) => ({ ...c, order: e.target.value }))} placeholder="1" />
               </FormField>
+
+              <FormField label="Durasi Materi (menit)">
+                <input type="number" min="1" value={form.duration_minutes} onChange={(e) => setForm((c) => ({ ...c, duration_minutes: e.target.value }))} placeholder="Contoh: 90" />
+                <small>{form.duration_minutes ? `${Math.ceil(Number(form.duration_minutes) / 45)} JP` : '1 JP = 45 menit'}</small>
+              </FormField>
             </div>
 
             {/* Right column: source (URL/file) + description */}
@@ -554,7 +624,24 @@ function MaterialsSection({ uuid }) {
 
                 {inputMode === 'file' && (
                   <div className="material-file-area">
-                    {filePreviewUrl ? (
+                    {formModal.type === 'create' && selectedFiles.length > 1 ? (
+                      <div className="material-file-preview">
+                        <div className="excel-preview-list" style={{ maxHeight: 180, overflow: 'auto' }}>
+                          <p className="mono-kicker text-muted" style={{ marginBottom: 4 }}>
+                            {selectedFiles.length} file dipilih
+                          </p>
+                          {selectedFiles.map((file) => (
+                            <div key={`${file.name}-${file.size}`} className="excel-preview-row">
+                              <span>{file.name}</span>
+                              <small>{(file.size / 1024 / 1024).toFixed(1)} MB</small>
+                            </div>
+                          ))}
+                        </div>
+                        <button type="button" className="material-file-clear" onClick={clearFile}>
+                          <X size={12} /> Hapus semua file
+                        </button>
+                      </div>
+                    ) : filePreviewUrl ? (
                       <div className="material-file-preview">
                         <FilePreview src={filePreviewUrl} fileName={selectedFile?.name || ''} className="material-preview-media" />
                         <button type="button" className="material-file-clear" onClick={clearFile}>
@@ -574,8 +661,9 @@ function MaterialsSection({ uuid }) {
                         <input
                           ref={fileInputRef}
                           type="file"
+                          multiple={formModal.type === 'create'}
                           style={{ display: 'none' }}
-                          onChange={(e) => pickFile(e.target.files[0])}
+                          onChange={(e) => pickFiles(e.target.files)}
                         />
                       </label>
                     )}
@@ -682,7 +770,8 @@ const QUESTION_TEMPLATE_EXAMPLES = [
   ['esai', 'Jelaskan peran ASN dalam pelayanan publik!', '', '', '', '', '', '', '', '20', 'tidak', '7'],
 ];
 
-function downloadQuestionTemplate() {
+async function downloadQuestionTemplate() {
+  const XLSX = await loadXlsx();
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Template
@@ -721,8 +810,9 @@ function QuestionImportPanel({ uuid, assessment, onDone, onClose }) {
     if (!f) return;
     setParsed(null); setParseErrors([]); setResult(null);
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await loadXlsx();
         const wb  = XLSX.read(ev.target.result, { type: 'array' });
         const ws  = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
@@ -1434,7 +1524,7 @@ function SubmissionsModal({ uuid, assessment, onClose }) {
                   return (
                     <div key={q.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <p style={{ margin: 0, fontWeight: 500, fontSize: 13 }}>{i + 1}. <span dangerouslySetInnerHTML={{ __html: q.question }} /></p>
+                        <p style={{ margin: 0, fontWeight: 500, fontSize: 13 }}>{i + 1}. <span dangerouslySetInnerHTML={{ __html: safe(q.question) }} /></p>
                         <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                           {TYPE_LABELS[q.type]} · {q.points ?? 1} poin
                         </span>
@@ -1869,7 +1959,8 @@ function ExcelTab({ uuid, onImportDone }) {
   const [parseError, setParseError] = useState('');
   const [result, setResult] = useState(null);
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
       ['NIP', 'Nama (opsional)'],
@@ -1885,8 +1976,9 @@ function ExcelTab({ uuid, onImportDone }) {
     setRows(null);
     setResult(null);
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await loadXlsx();
         const wb = XLSX.read(ev.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
@@ -2029,7 +2121,7 @@ function AddParticipantModal({ uuid, enrolledIds, onAdd, onBulkDone, onClose }) 
 
 const PARTICIPANT_PAGE_SIZE = 20;
 
-function ParticipantsSection({ uuid, quota }) {
+function ParticipantsSection({ uuid, quota, canManageParticipants = false }) {
   const queryClient = useQueryClient();
   const qk = ['event-participants', uuid];
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -2108,36 +2200,40 @@ function ParticipantsSection({ uuid, quota }) {
 
       {data.length > 0 && (
         <>
-          <div className="participant-bulk-bar">
-            <label className="opd-select-all-label" style={{ flex: 1 }}>
-              <input
-                type="checkbox"
-                checked={allPageSelected}
-                ref={(el) => { if (el) el.indeterminate = !allPageSelected && somePageSelected; }}
-                onChange={toggleAllPage}
-              />
-              {selected.size > 0 ? `${selected.size} dipilih` : 'Pilih Semua'}
-            </label>
-            {selected.size > 0 && (
-              <button
-                className="outline-button compact danger-outline-button"
-                disabled={bulkRemoveMut.isPending}
-                onClick={handleBulkRemove}
-              >
-                <Trash2 size={13} /> Hapus ({selected.size})
-              </button>
-            )}
-          </div>
+          {canManageParticipants && (
+            <div className="participant-bulk-bar">
+              <label className="opd-select-all-label" style={{ flex: 1 }}>
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  ref={(el) => { if (el) el.indeterminate = !allPageSelected && somePageSelected; }}
+                  onChange={toggleAllPage}
+                />
+                {selected.size > 0 ? `${selected.size} dipilih` : 'Pilih Semua'}
+              </label>
+              {selected.size > 0 && (
+                <button
+                  className="outline-button compact danger-outline-button"
+                  disabled={bulkRemoveMut.isPending}
+                  onClick={handleBulkRemove}
+                >
+                  <Trash2 size={13} /> Hapus ({selected.size})
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="participant-list">
             {pageData.map((p) => (
               <div className="participant-row" key={p.id}>
-                <input
-                  type="checkbox"
-                  className="participant-check"
-                  checked={selected.has(p.id)}
-                  onChange={() => toggleSelect(p.id)}
-                />
+                {canManageParticipants && (
+                  <input
+                    type="checkbox"
+                    className="participant-check"
+                    checked={selected.has(p.id)}
+                    onChange={() => toggleSelect(p.id)}
+                  />
+                )}
                 <div className="participant-avatar">{(p.user?.name || '?')[0].toUpperCase()}</div>
                 <div className="participant-info">
                   <strong>{p.user?.name}</strong>
@@ -2146,13 +2242,15 @@ function ParticipantsSection({ uuid, quota }) {
                 <em className={`status-badge ${PARTICIPANT_STATUS_ACCENTS[p.status] || ''}`}>
                   {PARTICIPANT_STATUS_LABELS[p.status] || p.status}
                 </em>
-                <button
-                  className="icon-action danger-icon"
-                  title="Hapus peserta"
-                  onClick={() => removeMut.mutate(p.user_id)}
-                >
-                  <Trash2 size={13} />
-                </button>
+                {canManageParticipants && (
+                  <button
+                    className="icon-action danger-icon"
+                    title="Hapus peserta"
+                    onClick={() => removeMut.mutate(p.user_id)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2167,16 +2265,22 @@ function ParticipantsSection({ uuid, quota }) {
         </>
       )}
 
-      <div className="participant-footer">
-        {quota > 0 && (
-          <span className="participant-quota">
-            <Users size={12} /> {quotaLabel} peserta
-          </span>
-        )}
-        <button className="setup-add-btn" style={{ flex: 1 }} onClick={() => setPickerOpen(true)}>
-          <Plus size={14} /> Tambah Peserta
-        </button>
-      </div>
+      {canManageParticipants ? (
+        <div className="participant-footer">
+          {quota > 0 && (
+            <span className="participant-quota">
+              <Users size={12} /> {quotaLabel} peserta
+            </span>
+          )}
+          <button className="setup-add-btn" style={{ flex: 1 }} onClick={() => setPickerOpen(true)}>
+            <Plus size={14} /> Tambah Peserta
+          </button>
+        </div>
+      ) : (
+        <p className="resource-note" style={{ margin: 0, fontSize: 12 }}>
+          Daftar peserta hanya dapat dilihat oleh fasilitator yang ditugaskan.
+        </p>
+      )}
 
       {pickerOpen && (
         <AddParticipantModal
@@ -2193,7 +2297,7 @@ function ParticipantsSection({ uuid, quota }) {
 
 // ── Preview panel ─────────────────────────────────────────────────────────────
 
-function EventSetupPreview({ event, uuid, onBannerChange }) {
+function EventSetupPreview({ event, uuid, onBannerChange, canUploadBanner = false }) {
   const bannerInputRef = useRef(null);
 
   const { data: sessions = [] } = useQuery({ queryKey: ['event-sessions', uuid], queryFn: async () => (await api.get(`/training-events/${uuid}/sessions`)).data.data, enabled: !!uuid });
@@ -2221,14 +2325,16 @@ function EventSetupPreview({ event, uuid, onBannerChange }) {
             <span>Belum ada banner</span>
           </div>
         )}
-        <button
-          type="button"
-          className="setup-banner-btn"
-          title="Unggah banner"
-          onClick={() => bannerInputRef.current?.click()}
-        >
-          <Camera size={14} /> Unggah Banner
-        </button>
+        {canUploadBanner && (
+          <button
+            type="button"
+            className="setup-banner-btn"
+            title="Unggah banner"
+            onClick={() => bannerInputRef.current?.click()}
+          >
+            <Camera size={14} /> Unggah Banner
+          </button>
+        )}
         <input
           ref={bannerInputRef}
           type="file"
@@ -2254,6 +2360,14 @@ function EventSetupPreview({ event, uuid, onBannerChange }) {
           {event.start_date && (
             <div><Clock size={14} /><span>{formatDate(event.start_date)} – {formatDate(event.end_date)}</span></div>
           )}
+          <div>
+            <span style={{ fontSize: 14 }}>💳</span>
+            <span>
+              {event.is_paid
+                ? (event.price ? `Rp ${Number(event.price).toLocaleString('id-ID')}` : 'Berbayar')
+                : 'Gratis'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -2326,10 +2440,12 @@ function EventSetupPreview({ event, uuid, onBannerChange }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function FacilitatorEventSetup() {
+export default function FacilitatorEventSetup({ session }) {
   const { uuid } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const roles = getRoleNames(session?.user);
+  const canUpdateEvent = roles.includes('super-admin') || hasAnyPermission(session, 'update training event');
 
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['training-event-detail', uuid],
@@ -2372,12 +2488,13 @@ export default function FacilitatorEventSetup() {
           <SessionsSection uuid={uuid} eventStart={event.start_date} eventEnd={event.end_date} />
           <MaterialsSection uuid={uuid} />
           <AssessmentsSection uuid={uuid} />
-          <ParticipantsSection uuid={uuid} quota={event.quota} />
+          <ParticipantsSection uuid={uuid} quota={event.quota} canManageParticipants={canUpdateEvent} />
         </div>
 
         <EventSetupPreview
           event={event}
           uuid={uuid}
+          canUploadBanner={canUpdateEvent}
           onBannerChange={(file) => bannerMutation.mutate(file)}
         />
       </div>

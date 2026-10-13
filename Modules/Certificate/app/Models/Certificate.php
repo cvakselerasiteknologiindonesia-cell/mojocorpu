@@ -13,6 +13,7 @@ class Certificate extends Model
         'uuid',
         'user_id',
         'training_event_id',
+        'learning_path_id',
         'certificate_template_id',
         'certificate_number',
         'verification_token',
@@ -38,6 +39,11 @@ class Certificate extends Model
     public function event()
     {
         return $this->belongsTo(\Modules\TrainingEvent\Models\TrainingEvent::class, 'training_event_id');
+    }
+
+    public function learningPath()
+    {
+        return $this->belongsTo(\App\Models\LearningPath::class, 'learning_path_id');
     }
 
     public function template()

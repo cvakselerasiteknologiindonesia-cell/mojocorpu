@@ -1,0 +1,17 @@
+body[data-sidebar-size=hidden] .startbar {
+  margin-left: calc(var(--bs-startbar-width) * -1);
+}
+
+body[data-sidebar-size=hidden] .page-wrapper .page-content {
+  margin-left: 0;
+}
+
+#sidebar-size-setting.opacity-50 {
+  opacity: 0.5;
+}
+
+@media (min-width: 1023.98px) {
+  body[data-sidebar-size=hidden] .topbar {
+    width: 100%;
+  }
+}

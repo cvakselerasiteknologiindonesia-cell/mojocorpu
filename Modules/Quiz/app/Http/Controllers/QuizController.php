@@ -7,10 +7,10 @@ use App\Support\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Modules\Notification\Models\AppNotification;
 use Modules\Quiz\Models\Quiz;
 use Modules\Quiz\Models\QuizComment;
 use Modules\Quiz\Models\QuizQuestion;
-use Modules\Notification\Models\AppNotification;
 use Modules\TrainingEvent\Models\TrainingEvent;
 
 class QuizController extends Controller
@@ -19,10 +19,17 @@ class QuizController extends Controller
 
     public function stats()
     {
+        // 4 separate COUNT queries collapsed into 1 selectRaw.
+        $row = Quiz::selectRaw("
+            COUNT(*) as total,
+            SUM(quiz_type = 'pre-test')  as pre_test,
+            SUM(quiz_type = 'post-test') as post_test
+        ")->first();
+
         return ApiResponse::success('Stats retrieved', [
-            'total'           => Quiz::count(),
-            'pre_test'        => Quiz::where('quiz_type', 'pre-test')->count(),
-            'post_test'       => Quiz::where('quiz_type', 'post-test')->count(),
+            'total' => (int) $row->total,
+            'pre_test' => (int) $row->pre_test,
+            'post_test' => (int) $row->post_test,
             'total_questions' => QuizQuestion::count(),
         ]);
     }
@@ -41,7 +48,10 @@ class QuizController extends Controller
             $query->where('quiz_type', $request->input('quiz_type'));
         }
 
-        $quizzes = $query->withCount('comments')->get()->map(fn ($quiz) => $this->formatQuiz($quiz));
+        // Only users who can create/manage quizzes see the correct answers.
+        $canManage = $request->user()->can('create quiz');
+
+        $quizzes = $query->withCount('comments')->get()->map(fn ($quiz) => $this->formatQuiz($quiz, $canManage));
 
         return ApiResponse::success('Quizzes retrieved', $quizzes);
     }
@@ -49,9 +59,9 @@ class QuizController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'event_uuid'    => ['required', 'string', 'exists:training_events,uuid'],
-            'title'         => ['required', 'string', 'max:255'],
-            'quiz_type'     => ['required', 'in:pre-test,post-test,evaluation'],
+            'event_uuid' => ['required', 'string', 'exists:training_events,uuid'],
+            'title' => ['required', 'string', 'max:255'],
+            'quiz_type' => ['required', 'in:pre-test,post-test,evaluation'],
             'passing_score' => ['required', 'integer', 'min:0', 'max:100'],
         ]);
 
@@ -61,15 +71,16 @@ class QuizController extends Controller
             $quiz = DB::transaction(function () use ($event, $data) {
                 return Quiz::create([
                     'training_event_id' => $event->id,
-                    'title'             => $data['title'],
-                    'quiz_type'         => $data['quiz_type'],
-                    'passing_score'     => $data['passing_score'],
+                    'title' => $data['title'],
+                    'quiz_type' => $data['quiz_type'],
+                    'passing_score' => $data['passing_score'],
                 ]);
             });
 
-            return ApiResponse::success('Quiz created', $this->formatQuiz($quiz->load(['event:id,uuid,title,status', 'questions'])), 201);
+            return ApiResponse::success('Quiz created', $this->formatQuiz($quiz->load(['event:id,uuid,title,status', 'questions']), true), 201);
         } catch (\Throwable $e) {
             Log::error($e->getMessage());
+
             return ApiResponse::error();
         }
     }
@@ -79,16 +90,18 @@ class QuizController extends Controller
         $quiz = Quiz::where('uuid', $uuid)->firstOrFail();
 
         $data = $request->validate([
-            'title'         => ['required', 'string', 'max:255'],
-            'quiz_type'     => ['required', 'in:pre-test,post-test,evaluation'],
+            'title' => ['required', 'string', 'max:255'],
+            'quiz_type' => ['required', 'in:pre-test,post-test,evaluation'],
             'passing_score' => ['required', 'integer', 'min:0', 'max:100'],
         ]);
 
         try {
             $quiz->update($data);
-            return ApiResponse::success('Quiz updated', $this->formatQuiz($quiz->load(['event:id,uuid,title,status', 'questions'])));
+
+            return ApiResponse::success('Quiz updated', $this->formatQuiz($quiz->load(['event:id,uuid,title,status', 'questions']), true));
         } catch (\Throwable $e) {
             Log::error($e->getMessage());
+
             return ApiResponse::error();
         }
     }
@@ -99,9 +112,11 @@ class QuizController extends Controller
 
         try {
             $quiz->delete();
+
             return ApiResponse::success('Quiz deleted');
         } catch (\Throwable $e) {
             Log::error($e->getMessage());
+
             return ApiResponse::error();
         }
     }
@@ -113,60 +128,65 @@ class QuizController extends Controller
         $quiz = Quiz::where('uuid', $uuid)->firstOrFail();
 
         $data = $request->validate([
-            'question'       => ['required', 'string'],
-            'options'        => ['required', 'array', 'min:2', 'max:5'],
-            'options.*'      => ['required', 'string', 'max:500'],
+            'question' => ['required', 'string'],
+            'options' => ['required', 'array', 'min:2', 'max:5'],
+            'options.*' => ['required', 'string', 'max:500'],
             'correct_answer' => ['required', 'string'],
-            'score'          => ['required', 'integer', 'min:1'],
+            'score' => ['required', 'integer', 'min:1'],
         ]);
 
         try {
             $question = $quiz->questions()->create([
-                'question'       => $data['question'],
-                'options'        => $data['options'],
+                'question' => $data['question'],
+                'options' => $data['options'],
                 'correct_answer' => $data['correct_answer'],
-                'score'          => $data['score'],
+                'score' => $data['score'],
             ]);
 
-            return ApiResponse::success('Question added', $this->formatQuestion($question), 201);
+            return ApiResponse::success('Question added', $this->formatQuestion($question, true), 201);
         } catch (\Throwable $e) {
             Log::error($e->getMessage());
+
             return ApiResponse::error();
         }
     }
 
     public function updateQuestion(Request $request, string $uuid, int $questionId)
     {
-        $quiz     = Quiz::where('uuid', $uuid)->firstOrFail();
+        $quiz = Quiz::where('uuid', $uuid)->firstOrFail();
         $question = QuizQuestion::where('id', $questionId)->where('quiz_id', $quiz->id)->firstOrFail();
 
         $data = $request->validate([
-            'question'       => ['required', 'string'],
-            'options'        => ['required', 'array', 'min:2', 'max:5'],
-            'options.*'      => ['required', 'string', 'max:500'],
+            'question' => ['required', 'string'],
+            'options' => ['required', 'array', 'min:2', 'max:5'],
+            'options.*' => ['required', 'string', 'max:500'],
             'correct_answer' => ['required', 'string'],
-            'score'          => ['required', 'integer', 'min:1'],
+            'score' => ['required', 'integer', 'min:1'],
         ]);
 
         try {
             $question->update($data);
-            return ApiResponse::success('Question updated', $this->formatQuestion($question));
+
+            return ApiResponse::success('Question updated', $this->formatQuestion($question, true));
         } catch (\Throwable $e) {
             Log::error($e->getMessage());
+
             return ApiResponse::error();
         }
     }
 
     public function destroyQuestion(string $uuid, int $questionId)
     {
-        $quiz     = Quiz::where('uuid', $uuid)->firstOrFail();
+        $quiz = Quiz::where('uuid', $uuid)->firstOrFail();
         $question = QuizQuestion::where('id', $questionId)->where('quiz_id', $quiz->id)->firstOrFail();
 
         try {
             $question->delete();
+
             return ApiResponse::success('Question deleted');
         } catch (\Throwable $e) {
             Log::error($e->getMessage());
+
             return ApiResponse::error();
         }
     }
@@ -182,12 +202,12 @@ class QuizController extends Controller
             ->latest()
             ->get()
             ->map(fn ($c) => [
-                'id'          => $c->id,
-                'uuid'        => $c->uuid,
-                'body'        => $c->body,
+                'id' => $c->id,
+                'uuid' => $c->uuid,
+                'body' => $c->body,
                 'author_name' => $c->author?->name ?? '—',
-                'author_id'   => $c->user_id,
-                'created_at'  => $c->created_at,
+                'author_id' => $c->user_id,
+                'created_at' => $c->created_at,
             ]);
 
         return ApiResponse::success('Comments retrieved', $comments);
@@ -205,14 +225,14 @@ class QuizController extends Controller
             $comment = QuizComment::create([
                 'quiz_id' => $quiz->id,
                 'user_id' => $request->user()->id,
-                'body'    => $data['body'],
+                'body' => $data['body'],
             ]);
 
             $facilitatorUser = $quiz->event?->facilitator?->user;
             if ($facilitatorUser) {
                 AppNotification::create([
                     'user_id' => $facilitatorUser->id,
-                    'title'   => 'Komentar pada Quiz',
+                    'title' => 'Komentar pada Quiz',
                     'message' => sprintf(
                         '%s memberikan komentar pada quiz "%s": %s',
                         $request->user()->name,
@@ -224,15 +244,16 @@ class QuizController extends Controller
             }
 
             return ApiResponse::success('Comment added', [
-                'id'          => $comment->id,
-                'uuid'        => $comment->uuid,
-                'body'        => $comment->body,
+                'id' => $comment->id,
+                'uuid' => $comment->uuid,
+                'body' => $comment->body,
                 'author_name' => $request->user()->name,
-                'author_id'   => $comment->user_id,
-                'created_at'  => $comment->created_at,
+                'author_id' => $comment->user_id,
+                'created_at' => $comment->created_at,
             ], 201);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -247,42 +268,52 @@ class QuizController extends Controller
                 'Tidak diizinkan.'
             );
             $comment->delete();
+
             return ApiResponse::success('Deleted');
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    private function formatQuiz(Quiz $quiz): array
+    private function formatQuiz(Quiz $quiz, bool $includeAnswers = false): array
     {
         return [
-            'uuid'          => $quiz->uuid,
-            'id'            => $quiz->id,
-            'title'         => $quiz->title,
-            'quiz_type'     => $quiz->quiz_type,
+            'uuid' => $quiz->uuid,
+            'id' => $quiz->id,
+            'title' => $quiz->title,
+            'quiz_type' => $quiz->quiz_type,
             'passing_score' => $quiz->passing_score,
-            'event_uuid'    => $quiz->event?->uuid,
-            'event_title'   => $quiz->event?->title ?? '—',
-            'event_status'  => $quiz->event?->status ?? '—',
+            'event_uuid' => $quiz->event?->uuid,
+            'event_title' => $quiz->event?->title ?? '—',
+            'event_status' => $quiz->event?->status ?? '—',
             'question_count' => $quiz->questions->count(),
-            'total_score'   => $quiz->questions->sum('score'),
+            'total_score' => $quiz->questions->sum('score'),
             'comment_count' => $quiz->comments_count ?? 0,
-            'questions'     => $quiz->questions->map(fn ($q) => $this->formatQuestion($q))->values(),
-            'created_at'    => $quiz->created_at,
+            'questions' => $quiz->questions->map(fn ($q) => $this->formatQuestion($q, $includeAnswers))->values(),
+            'created_at' => $quiz->created_at,
         ];
     }
 
-    private function formatQuestion(QuizQuestion $q): array
+    private function formatQuestion(QuizQuestion $q, bool $includeAnswers = false): array
     {
-        return [
-            'id'             => $q->id,
-            'question'       => $q->question,
-            'options'        => $q->options ?? [],
-            'correct_answer' => $q->correct_answer,
-            'score'          => $q->score,
+        $data = [
+            'id' => $q->id,
+            'question' => $q->question,
+            'options' => $q->options ?? [],
+            'score' => $q->score,
         ];
+
+        // Only expose correct_answer to users who can manage quiz content.
+        // Participants reach quizzes via AsnLearningController which already
+        // strips this field — this guard covers the quiz admin/index endpoints.
+        if ($includeAnswers) {
+            $data['correct_answer'] = $q->correct_answer;
+        }
+
+        return $data;
     }
 }

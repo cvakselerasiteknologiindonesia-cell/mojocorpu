@@ -8,14 +8,21 @@ class LearningMaterialRepository
 {
     public function stats(): array
     {
-        $q = LearningMaterial::query();
+        // 5 separate COUNT queries collapsed into 1 selectRaw.
+        $row = LearningMaterial::selectRaw("
+            COUNT(*) as total,
+            SUM(is_published = 1)              as published,
+            SUM(material_type = 'document')    as document,
+            SUM(material_type = 'video')       as video,
+            SUM(material_type = 'link')        as link
+        ")->first();
 
         return [
-            'total'     => (clone $q)->count(),
-            'published' => (clone $q)->where('is_published', true)->count(),
-            'document'  => (clone $q)->where('material_type', 'document')->count(),
-            'video'     => (clone $q)->where('material_type', 'video')->count(),
-            'link'      => (clone $q)->where('material_type', 'link')->count(),
+            'total' => (int) $row->total,
+            'published' => (int) $row->published,
+            'document' => (int) $row->document,
+            'video' => (int) $row->video,
+            'link' => (int) $row->link,
         ];
     }
 
@@ -39,7 +46,8 @@ class LearningMaterialRepository
         }
 
         if ($search = $filters['search'] ?? null) {
-            $q->where('title', 'like', "%{$search}%");
+            // Prefix-match: '{search}%' can use B-tree index on title.
+            $q->where('title', 'like', "{$search}%");
         }
 
         return $q->latest()->paginate($perPage);
@@ -58,6 +66,7 @@ class LearningMaterialRepository
     public function update(LearningMaterial $material, array $data): LearningMaterial
     {
         $material->update($data);
+
         return $material->fresh(['event:id,uuid,title', 'uploader:id,name']);
     }
 

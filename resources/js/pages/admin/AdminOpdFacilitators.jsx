@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  BookOpen, Building2, ChevronLeft, ChevronRight, Eye, EyeOff,
+  AlertTriangle, BookOpen, Building2, ChevronLeft, ChevronRight, Eye, EyeOff,
   Globe, Lock, Pencil, Plus, Search, Trash2, User, UserPlus, Users, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,11 +14,12 @@ const FILTER_TABS = [
   { key: 'internal', label: 'Internal',  type: 'internal', status: null },
   { key: 'external', label: 'Eksternal', type: 'external', status: null },
   { key: 'active',   label: 'Aktif',     type: null,       status: 'active' },
-  { key: 'inactive', label: 'Non-Aktif', type: null,       status: 'inactive' },
+  { key: 'inactive', label: 'Nonaktif', type: null,       status: 'inactive' },
 ];
 
 const EMPTY_FAC  = { user_id: null, user_name: '', user_email: '', picked_user_type: null, facilitator_type: 'internal', institution: '', expertise: '', bio: '', status: 'active' };
 const EMPTY_USER = { name: '', nip: '', email: '', password: '', user_type: 'asn' };
+const PAGE_SIZE_OPTIONS = [10, 15, 30];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,25 @@ function initials(name = '') {
 function formatDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function QualityBadge({ children }) {
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      fontSize: 10,
+      fontWeight: 700,
+      padding: '2px 7px',
+      background: '#fffbeb',
+      color: '#92400e',
+      border: '1px solid #fde68a',
+      whiteSpace: 'nowrap',
+    }}>
+      <AlertTriangle size={10} /> {children}
+    </span>
+  );
 }
 
 // ── Shared segmented control ───────────────────────────────────────────────────
@@ -304,7 +324,7 @@ function FacilitatorModal({ facilitator, onClose, onSuccess }) {
       >
         {/* ── Fixed header ── */}
         <div className="modal-head" style={{ flexShrink: 0 }}>
-          <h2>{isEdit ? 'Edit Fasilitator' : 'Tambah Fasilitator'}</h2>
+          <h2>{isEdit ? 'Ubah Fasilitator' : 'Tambah Fasilitator'}</h2>
           <button className="icon-action" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
         </div>
 
@@ -412,7 +432,7 @@ function FacilitatorModal({ facilitator, onClose, onSuccess }) {
                 <select value={fac.status} onChange={(e) => setF('status', e.target.value)}
                   style={{ width: '100%', padding: '9px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, background: '#fff', color: 'var(--fg-1)' }}>
                   <option value="active">Aktif</option>
-                  <option value="inactive">Non-Aktif</option>
+                  <option value="inactive">Nonaktif</option>
                 </select>
               </div>
 
@@ -482,7 +502,7 @@ function FacilitatorRow({ facilitator: f, onEdit, onDelete }) {
   const isActive   = f.status === 'active';
 
   return (
-    <div className="work-row" style={{ gap: 12, alignItems: 'center' }}>
+    <div className="work-row" style={{ gap: 12, alignItems: 'center', borderLeft: `3px solid ${isActive ? (isInternal ? '#111827' : '#2563eb') : '#d97706'}` }}>
       <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: isInternal ? '#000' : '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>
         {initials(f.user_name)}
       </div>
@@ -494,20 +514,21 @@ function FacilitatorRow({ facilitator: f, onEdit, onDelete }) {
             {isInternal ? 'INTERNAL' : 'EKSTERNAL'}
           </span>
           <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 20, background: isActive ? '#dcfce7' : 'var(--surface)', color: isActive ? '#166534' : 'var(--fg-3)', border: `1px solid ${isActive ? '#86efac' : 'var(--border)'}`, letterSpacing: '0.04em' }}>
-            {isActive ? 'AKTIF' : 'NON-AKTIF'}
+            {isActive ? 'AKTIF' : 'NONAKTIF'}
           </span>
         </div>
         <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--fg-3)' }}>{f.user_email || '—'}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
           {f.institution && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--fg-2)' }}><Building2 size={10} /> {f.institution}</span>}
           {f.expertise   && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--fg-2)' }}><BookOpen size={10} /> {f.expertise}</span>}
-          {!f.institution && !f.expertise && <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>—</span>}
+          {!f.institution && <QualityBadge>Instansi belum diisi</QualityBadge>}
+          {!f.expertise && <QualityBadge>Keahlian belum diisi</QualityBadge>}
         </div>
       </div>
 
       <span style={{ fontSize: 11, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>{formatDate(f.created_at)}</span>
       <div style={{ display: 'flex', gap: 4 }}>
-        <button className="icon-action" title="Edit" onClick={() => onEdit(f)}><Pencil size={13} /></button>
+        <button className="icon-action" title="Ubah" onClick={() => onEdit(f)}><Pencil size={13} /></button>
         <button className="icon-action danger-icon" title="Hapus" onClick={() => onDelete(f)}><Trash2 size={13} /></button>
       </div>
     </div>
@@ -524,6 +545,7 @@ export default function AdminOpdFacilitators() {
   const [search, setSearch]             = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage]                 = useState(1);
+  const [perPage, setPerPage]           = useState(15);
 
   const handleSearch = (val) => {
     setSearch(val);
@@ -540,11 +562,11 @@ export default function AdminOpdFacilitators() {
     staleTime: 30_000,
   });
 
-  const qk = ['facilitators', activeTab, debouncedSearch, page];
+  const qk = ['facilitators', activeTab, debouncedSearch, page, perPage];
   const { data, isLoading, isFetching } = useQuery({
     queryKey: qk,
     queryFn: async () => {
-      const params = new URLSearchParams({ per_page: 15, page });
+      const params = new URLSearchParams({ per_page: perPage, page });
       if (currentTab?.type)   params.set('type', currentTab.type);
       if (currentTab?.status) params.set('status', currentTab.status);
       if (debouncedSearch)    params.set('search', debouncedSearch);
@@ -573,8 +595,11 @@ export default function AdminOpdFacilitators() {
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Administration</p>
-        <h1>Fasilitator</h1>
+        <p className="mono-kicker text-muted">Administrasi</p>
+        <h1>Daftar Fasilitator</h1>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-3)' }}>
+          Kelola fasilitator internal dan eksternal, status aktif, serta kelengkapan profil mengajar.
+        </p>
       </div>
 
       <div className="cp-stats">
@@ -583,8 +608,10 @@ export default function AdminOpdFacilitators() {
           { label: 'Internal',  val: stats?.internal ?? '—' },
           { label: 'Eksternal', val: stats?.external ?? '—' },
           { label: 'Aktif',     val: stats?.active   ?? '—' },
+          { label: 'Nonaktif',  val: stats?.inactive ?? '—' },
+          { label: 'Profil Kurang', val: stats?.without_expertise ?? '—' },
         ].map(({ label, val }) => (
-          <div key={label} className="cp-stat">
+          <div key={label} className={`cp-stat${label === 'Aktif' ? ' cp-stat--approved' : label === 'Profil Kurang' ? ' cp-stat--pending' : ''}`}>
             <span className="cp-stat-val">{val}</span>
             <span className="cp-stat-lbl">{label}</span>
           </div>
@@ -602,7 +629,7 @@ export default function AdminOpdFacilitators() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
           <div className="picker-search">
             <Search size={14} />
-            <input placeholder="Cari nama, email, keahlian…" value={search} onChange={(e) => handleSearch(e.target.value)} />
+            <input placeholder="Cari nama, email, instansi, atau keahlian..." value={search} onChange={(e) => handleSearch(e.target.value)} />
           </div>
           <button className="primary-button compact" onClick={() => setModal('create')}>
             <Plus size={14} /> Tambah Fasilitator
@@ -615,8 +642,17 @@ export default function AdminOpdFacilitators() {
       {!isLoading && facilitators.length === 0 && (
         <div className="material-empty">
           <User size={32} />
-          <p>{search ? 'Tidak ada fasilitator yang cocok.' : 'Belum ada fasilitator terdaftar.'}</p>
-          {!search && <span>Klik "Tambah Fasilitator" untuk mendaftarkan fasilitator baru.</span>}
+          <p>{search ? `Tidak ada fasilitator yang cocok dengan "${search}".` : 'Belum ada fasilitator terdaftar.'}</p>
+          {search ? (
+            <button className="outline-button compact" onClick={() => handleSearch('')}>Reset pencarian</button>
+          ) : (
+            <>
+              <span>Klik "Tambah Fasilitator" untuk mendaftarkan fasilitator baru.</span>
+              <button className="primary-button compact" onClick={() => setModal('create')} style={{ marginTop: 12 }}>
+                <Plus size={14} /> Tambah Fasilitator
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -627,11 +663,18 @@ export default function AdminOpdFacilitators() {
       </div>
 
       {lastPage > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+        <div className="enterprise-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 12px', marginTop: 4 }}>
           <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{total} fasilitator · Halaman {page} / {lastPage}</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="icon-action" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} title="Sebelumnya"><ChevronLeft size={14} /></button>
-            <button className="icon-action" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)} title="Berikutnya"><ChevronRight size={14} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <select
+              value={perPage}
+              onChange={(event) => { setPerPage(Number(event.target.value)); setPage(1); }}
+              style={{ border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', padding: '7px 9px', fontSize: 12 }}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size} / halaman</option>)}
+            </select>
+            <button className="outline-button compact" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft size={14} /> Sebelumnya</button>
+            <button className="outline-button compact" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>Berikutnya <ChevronRight size={14} /></button>
           </div>
         </div>
       )}

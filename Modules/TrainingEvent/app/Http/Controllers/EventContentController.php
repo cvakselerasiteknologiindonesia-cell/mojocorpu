@@ -3,12 +3,15 @@
 namespace Modules\TrainingEvent\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Services\LearningPathProgressService;
 use App\Support\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use App\Models\User;
 use Modules\Attendance\Models\AttendanceRecord;
+use Modules\Certificate\Models\Certificate;
+use Modules\Facilitator\Models\Facilitator;
 use Modules\TrainingEvent\Models\AssessmentQuestion;
 use Modules\TrainingEvent\Models\AssessmentSubmission;
 use Modules\TrainingEvent\Models\EventAssessment;
@@ -16,7 +19,6 @@ use Modules\TrainingEvent\Models\EventMaterial;
 use Modules\TrainingEvent\Models\EventParticipant;
 use Modules\TrainingEvent\Models\EventSession;
 use Modules\TrainingEvent\Models\SessionAttendance;
-use Modules\Certificate\Models\Certificate;
 use Modules\TrainingEvent\Models\TrainingEvent;
 
 class EventContentController extends Controller
@@ -26,12 +28,99 @@ class EventContentController extends Controller
         return TrainingEvent::query()->where('uuid', $uuid)->firstOrFail();
     }
 
+    private function userIsAssignedFacilitator(User $user, TrainingEvent $event): bool
+    {
+        $facilitatorId = Facilitator::query()
+            ->where('user_id', $user->id)
+            ->value('id');
+
+        if (! $facilitatorId) {
+            return false;
+        }
+
+        return (int) $event->facilitator_id === (int) $facilitatorId
+            || $event->facilitators()->where('facilitators.id', $facilitatorId)->exists();
+    }
+
+    private function authorizeAssignedFacilitatorAccess(Request $request, TrainingEvent $event, string $permission, string $message): void
+    {
+        $user = $request->user();
+
+        if ($user->can('update training event')) {
+            return;
+        }
+
+        abort_unless($user->can($permission), 403, $message);
+        abort_unless($this->userIsAssignedFacilitator($user, $event), 403, 'Anda hanya dapat mengelola event yang ditugaskan kepada Anda.');
+    }
+
+    private function authorizeSessionManagement(Request $request, TrainingEvent $event): void
+    {
+        $this->authorizeAssignedFacilitatorAccess(
+            $request,
+            $event,
+            'manage own class sessions',
+            'Anda tidak memiliki akses untuk mengelola sesi event ini.'
+        );
+    }
+
+    private function authorizeMaterialManagement(Request $request, TrainingEvent $event): void
+    {
+        $this->authorizeAssignedFacilitatorAccess(
+            $request,
+            $event,
+            'manage own teaching materials',
+            'Anda tidak memiliki akses untuk mengelola materi event ini.'
+        );
+    }
+
+    private function authorizeAttendanceManagement(Request $request, TrainingEvent $event): void
+    {
+        $this->authorizeAssignedFacilitatorAccess(
+            $request,
+            $event,
+            'monitor participant attendance',
+            'Anda tidak memiliki akses untuk mengelola presensi event ini.'
+        );
+    }
+
+    private function authorizeAssessmentManagement(Request $request, TrainingEvent $event): void
+    {
+        $this->authorizeAssignedFacilitatorAccess(
+            $request,
+            $event,
+            'create quiz',
+            'Anda tidak memiliki akses untuk mengelola asesmen event ini.'
+        );
+    }
+
+    private function authorizeSubmissionGrading(Request $request, TrainingEvent $event): void
+    {
+        $this->authorizeAssignedFacilitatorAccess(
+            $request,
+            $event,
+            'input participant grades',
+            'Anda tidak memiliki akses untuk menilai peserta event ini.'
+        );
+    }
+
+    private function authorizeParticipantViewing(Request $request, TrainingEvent $event): void
+    {
+        $this->authorizeAssignedFacilitatorAccess(
+            $request,
+            $event,
+            'view assigned class participants',
+            'Anda tidak memiliki akses untuk melihat peserta event ini.'
+        );
+    }
+
     // ── Sessions (Learning Path) ──────────────────────────────────────────
 
-    public function indexSessions(string $uuid)
+    public function indexSessions(Request $request, string $uuid)
     {
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeSessionManagement($request, $event);
 
             return ApiResponse::success('Data retrieved', $event->sessions);
         } catch (\Throwable $e) {
@@ -44,44 +133,66 @@ class EventContentController extends Controller
     private function sessionDateRules(TrainingEvent $event): array
     {
         $startRules = ['nullable', 'date'];
-        $endRules   = ['nullable', 'date', 'after_or_equal:start_date'];
+        $endRules = ['nullable', 'date', 'after_or_equal:start_date'];
 
         if ($event->start_date) {
-            $startRules[] = 'after_or_equal:' . $event->start_date->toDateString();
+            $startRules[] = 'after_or_equal:'.$event->start_date->toDateString();
         }
         if ($event->end_date) {
-            $startRules[] = 'before_or_equal:' . $event->end_date->toDateString();
-            $endRules[]   = 'before_or_equal:' . $event->end_date->toDateString();
+            $startRules[] = 'before_or_equal:'.$event->end_date->toDateString();
+            $endRules[] = 'before_or_equal:'.$event->end_date->toDateString();
         }
 
         return [
             'start_date' => $startRules,
-            'end_date'   => $endRules,
+            'end_date' => $endRules,
         ];
     }
 
     private function sessionDateMessages(): array
     {
         return [
-            'start_date.after_or_equal'  => 'Tanggal mulai sesi tidak boleh sebelum tanggal mulai event.',
+            'start_date.after_or_equal' => 'Tanggal mulai sesi tidak boleh sebelum tanggal mulai event.',
             'start_date.before_or_equal' => 'Tanggal mulai sesi tidak boleh melewati tanggal selesai event.',
-            'end_date.after_or_equal'    => 'Tanggal selesai sesi harus setelah atau sama dengan tanggal mulai sesi.',
-            'end_date.before_or_equal'   => 'Tanggal selesai sesi tidak boleh melewati tanggal selesai event.',
+            'end_date.after_or_equal' => 'Tanggal selesai sesi harus setelah atau sama dengan tanggal mulai sesi.',
+            'end_date.before_or_equal' => 'Tanggal selesai sesi tidak boleh melewati tanggal selesai event.',
         ];
+    }
+
+    private function findOverlappingSession(TrainingEvent $event, string $startDate, string $endDate, ?int $excludeId = null): ?EventSession
+    {
+        return $event->sessions()
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->where('start_date', '<', $endDate)
+            ->where('end_date', '>', $startDate)
+            ->first();
     }
 
     public function storeSession(Request $request, string $uuid)
     {
         $event = $this->resolveEvent($uuid);
+        $this->authorizeSessionManagement($request, $event);
 
         $data = $request->validate([
-            'title'            => 'required|string|max:255',
-            'description'      => 'nullable|string',
-            'order'            => 'nullable|integer|min:1',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'order' => 'nullable|integer|min:1',
             'duration_minutes' => 'nullable|integer|min:1',
-            'status'           => 'nullable|string|in:draft,active,completed',
+            'status' => 'nullable|string|in:draft,active,completed',
             ...$this->sessionDateRules($event),
         ], $this->sessionDateMessages());
+
+        if (! empty($data['start_date']) && ! empty($data['end_date'])) {
+            $conflict = $this->findOverlappingSession($event, $data['start_date'], $data['end_date']);
+            if ($conflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Jadwal bertabrakan dengan sesi \"{$conflict->title}\". Sesi tidak boleh tumpang tindih.",
+                ], 422);
+            }
+        }
 
         try {
             $session = $event->sessions()->create($data);
@@ -97,18 +208,30 @@ class EventContentController extends Controller
     public function updateSession(Request $request, string $uuid, int $sessionId)
     {
         $event = $this->resolveEvent($uuid);
+        $this->authorizeSessionManagement($request, $event);
 
         $data = $request->validate([
-            'title'            => 'required|string|max:255',
-            'description'      => 'nullable|string',
-            'order'            => 'nullable|integer|min:1',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'order' => 'nullable|integer|min:1',
             'duration_minutes' => 'nullable|integer|min:1',
-            'status'           => 'nullable|string|in:draft,active,completed',
+            'status' => 'nullable|string|in:draft,active,completed',
             ...$this->sessionDateRules($event),
         ], $this->sessionDateMessages());
 
         try {
             $session = EventSession::query()->where('training_event_id', $event->id)->findOrFail($sessionId);
+
+            if (! empty($data['start_date']) && ! empty($data['end_date'])) {
+                $conflict = $this->findOverlappingSession($event, $data['start_date'], $data['end_date'], $session->id);
+                if ($conflict) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Jadwal bertabrakan dengan sesi \"{$conflict->title}\". Sesi tidak boleh tumpang tindih.",
+                    ], 422);
+                }
+            }
+
             $session->update($data);
 
             return ApiResponse::success('Updated successfully', $session);
@@ -119,10 +242,11 @@ class EventContentController extends Controller
         }
     }
 
-    public function destroySession(string $uuid, int $sessionId)
+    public function destroySession(Request $request, string $uuid, int $sessionId)
     {
         try {
-            $event   = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeSessionManagement($request, $event);
             $session = EventSession::query()->where('training_event_id', $event->id)->findOrFail($sessionId);
             $session->delete();
 
@@ -136,10 +260,11 @@ class EventContentController extends Controller
 
     // ── Materials ─────────────────────────────────────────────────────────
 
-    public function indexMaterials(string $uuid)
+    public function indexMaterials(Request $request, string $uuid)
     {
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeMaterialManagement($request, $event);
 
             return ApiResponse::success('Data retrieved', $event->materials);
         } catch (\Throwable $e) {
@@ -152,23 +277,47 @@ class EventContentController extends Controller
     public function storeMaterial(Request $request, string $uuid)
     {
         $data = $request->validate([
-            'title'       => 'required|string|max:255',
-            'type'        => 'nullable|string|in:document,video,link,presentation',
-            'url'         => 'nullable|string|max:2048',
-            'file'        => 'nullable|file|max:1024000',
+            'title' => 'required|string|max:255',
+            'type' => 'nullable|string|in:document,video,link,presentation',
+            'url' => 'nullable|string|max:2048',
+            'file' => 'nullable|file|max:1024000',
+            'files' => 'nullable|array|max:50',
+            'files.*' => 'file|max:1024000',
             'description' => 'nullable|string',
-            'order'       => 'nullable|integer|min:1',
+            'duration_minutes' => 'nullable|integer|min:1|max:65535',
+            'order' => 'nullable|integer|min:1',
         ]);
 
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeMaterialManagement($request, $event);
 
-            if ($request->hasFile('file')) {
-                $data['file_path'] = $request->file('file')->store('event-materials', 'public');
-                $data['url']       = null;
+            if ($request->hasFile('files')) {
+                $files = $request->file('files');
+                $materials = collect($files)->map(function ($file, int $index) use ($event, $data, $files) {
+                    $payload = $data;
+                    $payload['title'] = count($files) > 1
+                        ? mb_substr(trim($data['title'].' - '.$file->getClientOriginalName()), 0, 255)
+                        : $data['title'];
+                    $payload['file_path'] = $file->store('event-materials', 'local');
+                    $payload['url'] = null;
+                    $payload['order'] = ((int) ($data['order'] ?? 1)) + $index;
+
+                    unset($payload['file'], $payload['files']);
+
+                    return $event->materials()->create($payload);
+                });
+
+                return ApiResponse::success('Created successfully', $materials, 201);
             }
 
-            unset($data['file']);
+            if ($request->hasFile('file')) {
+                // Store in local disk — served via authenticated download route [M3 fix]
+                $data['file_path'] = $request->file('file')->store('event-materials', 'local');
+                $data['url'] = null;
+            }
+
+            unset($data['file'], $data['files']);
             $material = $event->materials()->create($data);
 
             return ApiResponse::success('Created successfully', $material, 201);
@@ -182,27 +331,34 @@ class EventContentController extends Controller
     public function updateMaterial(Request $request, string $uuid, int $materialId)
     {
         $data = $request->validate([
-            'title'       => 'required|string|max:255',
-            'type'        => 'nullable|string|in:document,video,link,presentation',
-            'url'         => 'nullable|string|max:2048',
-            'file'        => 'nullable|file|max:1024000',
-            'clear_file'  => 'nullable|boolean',
+            'title' => 'required|string|max:255',
+            'type' => 'nullable|string|in:document,video,link,presentation',
+            'url' => 'nullable|string|max:2048',
+            'file' => 'nullable|file|max:1024000',
+            'clear_file' => 'nullable|boolean',
             'description' => 'nullable|string',
-            'order'       => 'nullable|integer|min:1',
+            'duration_minutes' => 'nullable|integer|min:1|max:65535',
+            'order' => 'nullable|integer|min:1',
         ]);
 
         try {
-            $event    = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeMaterialManagement($request, $event);
             $material = EventMaterial::query()->where('training_event_id', $event->id)->findOrFail($materialId);
 
             if ($request->hasFile('file')) {
                 if ($material->file_path) {
-                    Storage::disk('public')->delete($material->file_path);
+                    Storage::disk('local')->exists($material->file_path)
+                        ? Storage::disk('local')->delete($material->file_path)
+                        : Storage::disk('public')->delete($material->file_path);
                 }
-                $data['file_path'] = $request->file('file')->store('event-materials', 'public');
-                $data['url']       = null;
+                // Store in local disk — served via authenticated download route [M3 fix]
+                $data['file_path'] = $request->file('file')->store('event-materials', 'local');
+                $data['url'] = null;
             } elseif ($request->boolean('clear_file') && $material->file_path) {
-                Storage::disk('public')->delete($material->file_path);
+                Storage::disk('local')->exists($material->file_path)
+                    ? Storage::disk('local')->delete($material->file_path)
+                    : Storage::disk('public')->delete($material->file_path);
                 $data['file_path'] = null;
             }
 
@@ -217,14 +373,17 @@ class EventContentController extends Controller
         }
     }
 
-    public function destroyMaterial(string $uuid, int $materialId)
+    public function destroyMaterial(Request $request, string $uuid, int $materialId)
     {
         try {
-            $event    = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeMaterialManagement($request, $event);
             $material = EventMaterial::query()->where('training_event_id', $event->id)->findOrFail($materialId);
 
             if ($material->file_path) {
-                Storage::disk('public')->delete($material->file_path);
+                Storage::disk('local')->exists($material->file_path)
+                    ? Storage::disk('local')->delete($material->file_path)
+                    : Storage::disk('public')->delete($material->file_path);
             }
             $material->delete();
 
@@ -238,10 +397,11 @@ class EventContentController extends Controller
 
     // ── Assessments ───────────────────────────────────────────────────────
 
-    public function indexAssessments(string $uuid)
+    public function indexAssessments(Request $request, string $uuid)
     {
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
 
             return ApiResponse::success('Data retrieved', $event->assessments);
         } catch (\Throwable $e) {
@@ -254,17 +414,18 @@ class EventContentController extends Controller
     public function storeAssessment(Request $request, string $uuid)
     {
         $data = $request->validate([
-            'type'                => 'required|string|in:pre_test,post_test',
-            'title'               => 'required|string|max:255',
-            'instructions'        => 'nullable|string',
-            'passing_score'       => 'nullable|integer|min:0|max:100',
-            'time_limit_minutes'  => 'nullable|integer|min:1',
-            'status'              => 'nullable|string|in:draft,published',
-            'bank_draw_count'     => 'nullable|integer|min:1',
+            'type' => 'required|string|in:pre_test,post_test',
+            'title' => 'required|string|max:255',
+            'instructions' => 'nullable|string',
+            'passing_score' => 'nullable|integer|min:0|max:100',
+            'time_limit_minutes' => 'nullable|integer|min:1',
+            'status' => 'nullable|string|in:draft,published',
+            'bank_draw_count' => 'nullable|integer|min:1',
         ]);
 
         try {
-            $event      = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = $event->assessments()->create($data);
 
             return ApiResponse::success('Created successfully', $assessment, 201);
@@ -278,17 +439,18 @@ class EventContentController extends Controller
     public function updateAssessment(Request $request, string $uuid, int $assessmentId)
     {
         $data = $request->validate([
-            'type'                => 'required|string|in:pre_test,post_test',
-            'title'               => 'required|string|max:255',
-            'instructions'        => 'nullable|string',
-            'passing_score'       => 'nullable|integer|min:0|max:100',
-            'time_limit_minutes'  => 'nullable|integer|min:1',
-            'status'              => 'nullable|string|in:draft,published',
-            'bank_draw_count'     => 'nullable|integer|min:1',
+            'type' => 'required|string|in:pre_test,post_test',
+            'title' => 'required|string|max:255',
+            'instructions' => 'nullable|string',
+            'passing_score' => 'nullable|integer|min:0|max:100',
+            'time_limit_minutes' => 'nullable|integer|min:1',
+            'status' => 'nullable|string|in:draft,published',
+            'bank_draw_count' => 'nullable|integer|min:1',
         ]);
 
         try {
-            $event      = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = EventAssessment::query()->where('training_event_id', $event->id)->findOrFail($assessmentId);
             $assessment->update($data);
 
@@ -300,10 +462,11 @@ class EventContentController extends Controller
         }
     }
 
-    public function destroyAssessment(string $uuid, int $assessmentId)
+    public function destroyAssessment(Request $request, string $uuid, int $assessmentId)
     {
         try {
-            $event      = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = EventAssessment::query()->where('training_event_id', $event->id)->findOrFail($assessmentId);
             $assessment->delete();
 
@@ -324,9 +487,11 @@ class EventContentController extends Controller
         return EventAssessment::query()->where('training_event_id', $event->id)->findOrFail($assessmentId);
     }
 
-    public function indexQuestions(string $uuid, int $assessmentId)
+    public function indexQuestions(Request $request, string $uuid, int $assessmentId)
     {
         try {
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = $this->resolveAssessment($uuid, $assessmentId);
 
             return ApiResponse::success('Data retrieved', $assessment->questions);
@@ -340,19 +505,21 @@ class EventContentController extends Controller
     public function storeQuestion(Request $request, string $uuid, int $assessmentId)
     {
         $data = $request->validate([
-            'question'       => 'required|string',
-            'type'           => 'required|string|in:multiple_choice,true_false,essay,multiple_select,fill_in_blank,matching,ordering',
-            'options'        => 'nullable|array',
-            'options.*'      => 'nullable',
+            'question' => 'required|string',
+            'type' => 'required|string|in:multiple_choice,true_false,essay,multiple_select,fill_in_blank,matching,ordering',
+            'options' => 'nullable|array',
+            'options.*' => 'nullable',
             'correct_answer' => 'nullable|string|max:5000',
-            'points'         => 'nullable|integer|min:1',
-            'order'          => 'nullable|integer|min:1',
-            'in_bank'        => 'nullable|boolean',
+            'points' => 'nullable|integer|min:1',
+            'order' => 'nullable|integer|min:1',
+            'in_bank' => 'nullable|boolean',
         ]);
 
         try {
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = $this->resolveAssessment($uuid, $assessmentId);
-            $question   = $assessment->questions()->create($data);
+            $question = $assessment->questions()->create($data);
 
             return ApiResponse::success('Created successfully', $question, 201);
         } catch (\Throwable $e) {
@@ -365,19 +532,21 @@ class EventContentController extends Controller
     public function updateQuestion(Request $request, string $uuid, int $assessmentId, int $questionId)
     {
         $data = $request->validate([
-            'question'       => 'required|string',
-            'type'           => 'required|string|in:multiple_choice,true_false,essay,multiple_select,fill_in_blank,matching,ordering',
-            'options'        => 'nullable|array',
-            'options.*'      => 'nullable',
+            'question' => 'required|string',
+            'type' => 'required|string|in:multiple_choice,true_false,essay,multiple_select,fill_in_blank,matching,ordering',
+            'options' => 'nullable|array',
+            'options.*' => 'nullable',
             'correct_answer' => 'nullable|string|max:5000',
-            'points'         => 'nullable|integer|min:1',
-            'order'          => 'nullable|integer|min:1',
-            'in_bank'        => 'nullable|boolean',
+            'points' => 'nullable|integer|min:1',
+            'order' => 'nullable|integer|min:1',
+            'in_bank' => 'nullable|boolean',
         ]);
 
         try {
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = $this->resolveAssessment($uuid, $assessmentId);
-            $question   = AssessmentQuestion::query()->where('event_assessment_id', $assessment->id)->findOrFail($questionId);
+            $question = AssessmentQuestion::query()->where('event_assessment_id', $assessment->id)->findOrFail($questionId);
             $question->update($data);
 
             return ApiResponse::success('Updated successfully', $question);
@@ -388,11 +557,13 @@ class EventContentController extends Controller
         }
     }
 
-    public function destroyQuestion(string $uuid, int $assessmentId, int $questionId)
+    public function destroyQuestion(Request $request, string $uuid, int $assessmentId, int $questionId)
     {
         try {
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = $this->resolveAssessment($uuid, $assessmentId);
-            $question   = AssessmentQuestion::query()->where('event_assessment_id', $assessment->id)->findOrFail($questionId);
+            $question = AssessmentQuestion::query()->where('event_assessment_id', $assessment->id)->findOrFail($questionId);
             $question->delete();
 
             return ApiResponse::success('Deleted successfully');
@@ -406,42 +577,44 @@ class EventContentController extends Controller
     public function importQuestions(Request $request, string $uuid, int $assessmentId)
     {
         $request->validate([
-            'questions'                  => 'required|array|min:1|max:200',
-            'questions.*.question'       => 'required|string',
-            'questions.*.type'           => 'required|string|in:multiple_choice,true_false,essay,multiple_select,fill_in_blank,matching,ordering',
-            'questions.*.options'        => 'nullable|array',
-            'questions.*.options.*'      => 'nullable',
+            'questions' => 'required|array|min:1|max:200',
+            'questions.*.question' => 'required|string',
+            'questions.*.type' => 'required|string|in:multiple_choice,true_false,essay,multiple_select,fill_in_blank,matching,ordering',
+            'questions.*.options' => 'nullable|array',
+            'questions.*.options.*' => 'nullable',
             'questions.*.correct_answer' => 'nullable|string|max:5000',
-            'questions.*.points'         => 'nullable|integer|min:1',
-            'questions.*.order'          => 'nullable|integer|min:1',
-            'questions.*.in_bank'        => 'nullable|boolean',
+            'questions.*.points' => 'nullable|integer|min:1',
+            'questions.*.order' => 'nullable|integer|min:1',
+            'questions.*.in_bank' => 'nullable|boolean',
         ]);
 
         try {
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAssessmentManagement($request, $event);
             $assessment = $this->resolveAssessment($uuid, $assessmentId);
-            $imported   = 0;
-            $errors     = [];
+            $imported = 0;
+            $errors = [];
 
             foreach ($request->input('questions') as $i => $q) {
                 try {
                     $assessment->questions()->create([
-                        'question'       => $q['question'],
-                        'type'           => $q['type'],
-                        'options'        => $q['options'] ?? null,
+                        'question' => $q['question'],
+                        'type' => $q['type'],
+                        'options' => $q['options'] ?? null,
                         'correct_answer' => $q['correct_answer'] ?? null,
-                        'points'         => $q['points'] ?? 1,
-                        'order'          => $q['order'] ?? ($assessment->questions()->count() + 1),
-                        'in_bank'        => $q['in_bank'] ?? false,
+                        'points' => $q['points'] ?? 1,
+                        'order' => $q['order'] ?? ($assessment->questions()->count() + 1),
+                        'in_bank' => $q['in_bank'] ?? false,
                     ]);
                     $imported++;
                 } catch (\Throwable $e) {
-                    $errors[] = "Baris " . ($i + 2) . ": " . $e->getMessage();
+                    $errors[] = 'Baris '.($i + 2).': '.$e->getMessage();
                 }
             }
 
             return ApiResponse::success("{$imported} soal berhasil diimport.", [
                 'imported' => $imported,
-                'errors'   => $errors,
+                'errors' => $errors,
             ], 201);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
@@ -452,24 +625,26 @@ class EventContentController extends Controller
 
     // ── Assessment Submissions ────────────────────────────────────────────
 
-    public function indexSubmissions(string $uuid, int $assessmentId)
+    public function indexSubmissions(Request $request, string $uuid, int $assessmentId)
     {
         try {
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeSubmissionGrading($request, $event);
             $assessment = $this->resolveAssessment($uuid, $assessmentId);
             $assessment->load(['questions', 'submissions.user']);
 
             $hasEssay = $assessment->questions->contains('type', 'essay');
 
             return ApiResponse::success('Data retrieved', [
-                'assessment'  => $assessment->only(['id', 'title', 'type', 'passing_score']),
-                'has_essay'   => $hasEssay,
-                'questions'   => $assessment->questions,
+                'assessment' => $assessment->only(['id', 'title', 'type', 'passing_score']),
+                'has_essay' => $hasEssay,
+                'questions' => $assessment->questions,
                 'submissions' => $assessment->submissions->map(fn ($s) => [
-                    'id'           => $s->id,
-                    'user'         => $s->user ? ['id' => $s->user->id, 'name' => $s->user->name, 'nip' => $s->user->nip] : null,
-                    'answers'      => $s->answers,
-                    'score'        => $s->score,
-                    'is_passed'    => $s->is_passed,
+                    'id' => $s->id,
+                    'user' => $s->user ? ['id' => $s->user->id, 'name' => $s->user->name, 'nip' => $s->user->nip] : null,
+                    'answers' => $s->answers,
+                    'score' => $s->score,
+                    'is_passed' => $s->is_passed,
                     'submitted_at' => $s->submitted_at,
                 ]),
             ]);
@@ -487,13 +662,15 @@ class EventContentController extends Controller
         ]);
 
         try {
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeSubmissionGrading($request, $event);
             $assessment = $this->resolveAssessment($uuid, $assessmentId);
             $submission = AssessmentSubmission::query()
                 ->where('event_assessment_id', $assessment->id)
                 ->findOrFail($submissionId);
 
             $submission->update([
-                'score'     => $data['score'],
+                'score' => $data['score'],
                 'is_passed' => $data['score'] >= $assessment->passing_score,
             ]);
 
@@ -507,12 +684,14 @@ class EventContentController extends Controller
 
     // ── Participants ──────────────────────────────────────────────────────
 
-    public function indexParticipants(string $uuid)
+    public function indexParticipants(Request $request, string $uuid)
     {
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeParticipantViewing($request, $event);
 
-            return ApiResponse::success('Data retrieved', $event->participants);
+            // Load user explicitly now that the relation no longer auto-eager-loads it.
+            return ApiResponse::success('Data retrieved', $event->participants()->with('user:id,name,email,nip')->get());
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
@@ -523,7 +702,8 @@ class EventContentController extends Controller
     public function searchParticipantCandidates(Request $request, string $uuid)
     {
         try {
-            $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeParticipantViewing($request, $event);
 
             $users = User::query()
                 ->select('id', 'name', 'nip', 'email', 'opd_name', 'organization_unit_name')
@@ -546,10 +726,11 @@ class EventContentController extends Controller
         }
     }
 
-    public function listOpdsForEnrollment(string $uuid)
+    public function listOpdsForEnrollment(Request $request, string $uuid)
     {
         try {
-            $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeParticipantViewing($request, $event);
 
             $opds = User::query()
                 ->whereNotNull('opd_name')
@@ -570,17 +751,17 @@ class EventContentController extends Controller
     public function bulkEnrollByOpd(Request $request, string $uuid)
     {
         $request->validate([
-            'opd_name'       => 'required|string|max:255',
-            'exclude_nips'   => 'nullable|array',
+            'opd_name' => 'required|string|max:255',
+            'exclude_nips' => 'nullable|array',
             'exclude_nips.*' => 'string|max:32',
         ]);
 
         try {
-            $event       = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
             $excludeNips = array_filter($request->input('exclude_nips', []));
 
             $users = User::where('opd_name', $request->string('opd_name'))
-                ->when(!empty($excludeNips), fn ($q) => $q->whereNotIn('nip', $excludeNips))
+                ->when(! empty($excludeNips), fn ($q) => $q->whereNotIn('nip', $excludeNips))
                 ->get(['id']);
 
             $enrolled = $this->enrollUsers($event, $users);
@@ -596,20 +777,20 @@ class EventContentController extends Controller
     public function bulkEnrollAll(Request $request, string $uuid)
     {
         $request->validate([
-            'exclude_opds'   => 'nullable|array',
+            'exclude_opds' => 'nullable|array',
             'exclude_opds.*' => 'string|max:255',
-            'exclude_nips'   => 'nullable|array',
+            'exclude_nips' => 'nullable|array',
             'exclude_nips.*' => 'string|max:32',
         ]);
 
         try {
-            $event       = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
             $excludeOpds = array_filter($request->input('exclude_opds', []));
             $excludeNips = array_filter($request->input('exclude_nips', []));
 
             $users = User::query()
-                ->when(!empty($excludeOpds), fn ($q) => $q->whereNotIn('opd_name', $excludeOpds))
-                ->when(!empty($excludeNips), fn ($q) => $q->whereNotIn('nip', $excludeNips))
+                ->when(! empty($excludeOpds), fn ($q) => $q->whereNotIn('opd_name', $excludeOpds))
+                ->when(! empty($excludeNips), fn ($q) => $q->whereNotIn('nip', $excludeNips))
                 ->get(['id']);
 
             $enrolled = $this->enrollUsers($event, $users);
@@ -625,16 +806,23 @@ class EventContentController extends Controller
     private function enrollUsers($event, $users): int
     {
         $enrolled = 0;
+
+        // Count once before the loop — avoids N+1 quota check queries.
+        $currentCount = $event->quota ? $event->participants()->count() : 0;
+
         foreach ($users as $user) {
-            if ($event->quota && $event->participants()->count() >= $event->quota) {
+            if ($event->quota && $currentCount >= $event->quota) {
                 break;
             }
+
             $participant = EventParticipant::firstOrCreate(
                 ['training_event_id' => $event->id, 'user_id' => $user->id],
                 ['status' => 'enrolled', 'enrolled_at' => now()],
             );
+
             if ($participant->wasRecentlyCreated) {
                 $enrolled++;
+                $currentCount++;
             }
         }
 
@@ -644,20 +832,24 @@ class EventContentController extends Controller
     public function importParticipants(Request $request, string $uuid)
     {
         $request->validate([
-            'nips'   => 'required|array|min:1|max:500',
+            'nips' => 'required|array|min:1|max:500',
             'nips.*' => 'required|string|max:32',
         ]);
 
         try {
-            $event   = $this->resolveEvent($uuid);
-            $nips    = array_unique(array_filter($request->input('nips')));
-            $users   = User::whereIn('nip', $nips)->get(['id', 'nip', 'name']);
+            $event = $this->resolveEvent($uuid);
+            $nips = array_unique(array_filter($request->input('nips')));
+            $users = User::whereIn('nip', $nips)->get(['id', 'nip', 'name']);
             $foundNips = $users->pluck('nip')->all();
-            $notFound  = array_values(array_diff($nips, $foundNips));
+            $notFound = array_values(array_diff($nips, $foundNips));
 
             $enrolled = 0;
+
+            // Count once before the loop — avoids N+1 quota check queries.
+            $currentCount = $event->quota ? $event->participants()->count() : 0;
+
             foreach ($users as $user) {
-                if ($event->quota && $event->participants()->count() >= $event->quota) {
+                if ($event->quota && $currentCount >= $event->quota) {
                     break;
                 }
                 $participant = EventParticipant::firstOrCreate(
@@ -666,11 +858,12 @@ class EventContentController extends Controller
                 );
                 if ($participant->wasRecentlyCreated) {
                     $enrolled++;
+                    $currentCount++;
                 }
             }
 
             return ApiResponse::success("{$enrolled} peserta berhasil diimport.", [
-                'enrolled'      => $enrolled,
+                'enrolled' => $enrolled,
                 'not_found_nips' => $notFound,
             ]);
         } catch (\Throwable $e) {
@@ -757,12 +950,12 @@ class EventContentController extends Controller
     public function bulkRemoveParticipants(Request $request, string $uuid)
     {
         $request->validate([
-            'user_ids'   => 'required|array|min:1',
+            'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'integer',
         ]);
 
         try {
-            $event   = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
             $deleted = EventParticipant::where('training_event_id', $event->id)
                 ->whereIn('user_id', $request->input('user_ids'))
                 ->delete();
@@ -777,10 +970,11 @@ class EventContentController extends Controller
 
     // ── Attendance ────────────────────────────────────────────────────────────
 
-    public function indexAttendance(string $uuid)
+    public function indexAttendance(Request $request, string $uuid)
     {
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
 
             // All enrolled participants with user info
             $participants = EventParticipant::query()
@@ -820,15 +1014,16 @@ class EventContentController extends Controller
 
             $rows = $participants->map(function ($p) use ($eventAttendances, $sessionAttByUser) {
                 $att = $eventAttendances->get($p->user_id);
+
                 return [
-                    'id'                 => $p->id,
-                    'user_id'            => $p->user_id,
-                    'user'               => $p->user,
+                    'id' => $p->id,
+                    'user_id' => $p->user_id,
+                    'user' => $p->user,
                     'participant_status' => $p->status,
-                    'event_attendance'   => $att ? [
-                        'checked_in'    => true,
+                    'event_attendance' => $att ? [
+                        'checked_in' => true,
                         'checked_in_at' => $att->checked_in_at,
-                        'status'        => $att->status,
+                        'status' => $att->status,
                     ] : ['checked_in' => false, 'checked_in_at' => null, 'status' => null],
                     'session_attendances' => $sessionAttByUser[$p->user_id] ?? [],
                 ];
@@ -838,16 +1033,16 @@ class EventContentController extends Controller
 
             return ApiResponse::success('Data retrieved', [
                 'participants' => $rows,
-                'sessions'     => $sessions->map(fn ($s) => [
-                    'id'               => $s->id,
-                    'title'            => $s->title,
-                    'start_date'       => $s->start_date,
+                'sessions' => $sessions->map(fn ($s) => [
+                    'id' => $s->id,
+                    'title' => $s->title,
+                    'start_date' => $s->start_date,
                     'attendance_count' => $s->attendances_count,
                 ]),
                 'stats' => [
-                    'total'   => $participants->count(),
+                    'total' => $participants->count(),
                     'present' => $presentCount,
-                    'absent'  => $participants->count() - $presentCount,
+                    'absent' => $participants->count() - $presentCount,
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -863,7 +1058,8 @@ class EventContentController extends Controller
 
         try {
             $event = $this->resolveEvent($uuid);
-            $now   = now();
+            $this->authorizeAttendanceManagement($request, $event);
+            $now = now();
             foreach ($request->input('user_ids') as $userId) {
                 AttendanceRecord::firstOrCreate(
                     ['training_event_id' => $event->id, 'user_id' => $userId],
@@ -871,7 +1067,7 @@ class EventContentController extends Controller
                 );
             }
 
-            return ApiResponse::success(count($request->input('user_ids')) . ' presensi dicatat.');
+            return ApiResponse::success(count($request->input('user_ids')).' presensi dicatat.');
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
@@ -885,6 +1081,7 @@ class EventContentController extends Controller
 
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
             AttendanceRecord::where('training_event_id', $event->id)
                 ->whereIn('user_id', $request->input('user_ids'))
                 ->delete();
@@ -902,9 +1099,10 @@ class EventContentController extends Controller
         $request->validate(['user_ids' => 'required|array|min:1', 'user_ids.*' => 'integer']);
 
         try {
-            $event   = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
             $session = EventSession::where('training_event_id', $event->id)->findOrFail($sessionId);
-            $now     = now();
+            $now = now();
             foreach ($request->input('user_ids') as $userId) {
                 SessionAttendance::firstOrCreate(
                     ['event_session_id' => $session->id, 'user_id' => $userId],
@@ -912,7 +1110,7 @@ class EventContentController extends Controller
                 );
             }
 
-            return ApiResponse::success(count($request->input('user_ids')) . ' presensi sesi dicatat.');
+            return ApiResponse::success(count($request->input('user_ids')).' presensi sesi dicatat.');
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
@@ -925,7 +1123,8 @@ class EventContentController extends Controller
         $request->validate(['user_ids' => 'required|array|min:1', 'user_ids.*' => 'integer']);
 
         try {
-            $event   = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
             $session = EventSession::where('training_event_id', $event->id)->findOrFail($sessionId);
             SessionAttendance::where('event_session_id', $session->id)
                 ->whereIn('user_id', $request->input('user_ids'))
@@ -939,10 +1138,11 @@ class EventContentController extends Controller
         }
     }
 
-    public function markAttendance(string $uuid, int $userId)
+    public function markAttendance(Request $request, string $uuid, int $userId)
     {
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
 
             abort_unless(
                 EventParticipant::where('training_event_id', $event->id)->where('user_id', $userId)->exists(),
@@ -963,10 +1163,11 @@ class EventContentController extends Controller
         }
     }
 
-    public function unmarkAttendance(string $uuid, int $userId)
+    public function unmarkAttendance(Request $request, string $uuid, int $userId)
     {
         try {
             $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
 
             AttendanceRecord::where('training_event_id', $event->id)
                 ->where('user_id', $userId)
@@ -980,10 +1181,11 @@ class EventContentController extends Controller
         }
     }
 
-    public function markSessionAttendance(string $uuid, int $sessionId, int $userId)
+    public function markSessionAttendance(Request $request, string $uuid, int $sessionId, int $userId)
     {
         try {
-            $event   = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
             $session = EventSession::where('training_event_id', $event->id)->findOrFail($sessionId);
 
             abort_unless(
@@ -1005,10 +1207,11 @@ class EventContentController extends Controller
         }
     }
 
-    public function unmarkSessionAttendance(string $uuid, int $sessionId, int $userId)
+    public function unmarkSessionAttendance(Request $request, string $uuid, int $sessionId, int $userId)
     {
         try {
-            $event   = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
+            $this->authorizeAttendanceManagement($request, $event);
             $session = EventSession::where('training_event_id', $event->id)->findOrFail($sessionId);
 
             SessionAttendance::where('event_session_id', $session->id)
@@ -1035,8 +1238,8 @@ class EventContentController extends Controller
                 ->with('user:id,name,nip,opd_name')
                 ->get();
 
-            $userIds      = $participants->pluck('user_id');
-            $sessionIds   = $event->sessions->pluck('id');
+            $userIds = $participants->pluck('user_id');
+            $sessionIds = $event->sessions->pluck('id');
             $totalSessions = $event->sessions->count();
 
             // Event-level attendance
@@ -1052,9 +1255,9 @@ class EventContentController extends Controller
                 ->pluck('cnt', 'user_id');
 
             // Assessments with submissions
-            $assessments   = EventAssessment::where('training_event_id', $event->id)->get();
+            $assessments = EventAssessment::where('training_event_id', $event->id)->get();
             $assessmentIds = $assessments->pluck('id');
-            $submissions   = AssessmentSubmission::whereIn('event_assessment_id', $assessmentIds)
+            $submissions = AssessmentSubmission::whereIn('event_assessment_id', $assessmentIds)
                 ->whereIn('user_id', $userIds)
                 ->get()->groupBy('user_id');
 
@@ -1067,50 +1270,50 @@ class EventContentController extends Controller
                 $attendances, $sessionCounts, $submissions, $certificates,
                 $assessments, $totalSessions
             ) {
-                $att          = $attendances->get($p->user_id);
-                $userSubs     = $submissions->get($p->user_id, collect());
+                $att = $attendances->get($p->user_id);
+                $userSubs = $submissions->get($p->user_id, collect());
                 $assessmentData = $assessments->map(fn ($a) => [
-                    'id'           => $a->id,
-                    'title'        => $a->title,
-                    'type'         => $a->type,
+                    'id' => $a->id,
+                    'title' => $a->title,
+                    'type' => $a->type,
                     'passing_score' => $a->passing_score,
-                    'score'        => $userSubs->firstWhere('event_assessment_id', $a->id)?->score,
-                    'is_passed'    => $userSubs->firstWhere('event_assessment_id', $a->id)?->is_passed,
-                    'submitted'    => $userSubs->contains('event_assessment_id', $a->id),
+                    'score' => $userSubs->firstWhere('event_assessment_id', $a->id)?->score,
+                    'is_passed' => $userSubs->firstWhere('event_assessment_id', $a->id)?->is_passed,
+                    'submitted' => $userSubs->contains('event_assessment_id', $a->id),
                 ])->values();
 
                 return [
-                    'id'               => $p->id,
-                    'user_id'          => $p->user_id,
-                    'status'           => $p->status,
+                    'id' => $p->id,
+                    'user_id' => $p->user_id,
+                    'status' => $p->status,
                     'completion_status' => $p->completion_status,
-                    'approved_by'      => $p->approved_by,
-                    'approved_at'      => $p->approved_at,
+                    'approved_by' => $p->approved_by,
+                    'approved_at' => $p->approved_at,
                     'rejection_reason' => $p->rejection_reason,
-                    'enrolled_at'      => $p->enrolled_at,
-                    'completed_at'     => $p->completed_at,
-                    'user'             => $p->user,
-                    'attendance'       => [
-                        'checked_in'    => $att !== null,
+                    'enrolled_at' => $p->enrolled_at,
+                    'completed_at' => $p->completed_at,
+                    'user' => $p->user,
+                    'attendance' => [
+                        'checked_in' => $att !== null,
                         'checked_in_at' => $att?->checked_in_at,
                     ],
                     'session_attendance_count' => $sessionCounts->get($p->user_id, 0),
-                    'total_sessions'   => $totalSessions,
-                    'assessments'      => $assessmentData,
-                    'certificate'      => $certificates->get($p->user_id),
+                    'total_sessions' => $totalSessions,
+                    'assessments' => $assessmentData,
+                    'certificate' => $certificates->get($p->user_id),
                 ];
             });
 
             $stats = [
-                'total'    => $participants->count(),
-                'pending'  => $participants->where('completion_status', 'pending')->count(),
+                'total' => $participants->count(),
+                'pending' => $participants->where('completion_status', 'pending')->count(),
                 'approved' => $participants->where('completion_status', 'approved')->count(),
                 'rejected' => $participants->where('completion_status', 'rejected')->count(),
             ];
 
             return ApiResponse::success('Data retrieved', [
-                'participants'  => $list,
-                'stats'         => $stats,
+                'participants' => $list,
+                'stats' => $stats,
                 'total_sessions' => $totalSessions,
             ]);
         } catch (\Throwable $e) {
@@ -1120,29 +1323,31 @@ class EventContentController extends Controller
         }
     }
 
-    public function approveCompletion(Request $request, string $uuid, int $userId)
+    public function approveCompletion(Request $request, string $uuid, int $userId, LearningPathProgressService $learningPathProgressService)
     {
         try {
-            $event       = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
             $participant = EventParticipant::where('training_event_id', $event->id)
                 ->where('user_id', $userId)->firstOrFail();
 
             $participant->update([
                 'completion_status' => 'approved',
-                'status'            => 'completed',
-                'completed_at'      => now(),
-                'approved_by'       => $request->user()->id,
-                'approved_at'       => now(),
-                'rejection_reason'  => null,
+                'status' => 'completed',
+                'completed_at' => now(),
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+                'rejection_reason' => null,
             ]);
 
-            $certNumber = 'CERT/' . date('Y') . '/' . str_pad($event->id, 4, '0', STR_PAD_LEFT)
-                . '/' . str_pad($userId, 4, '0', STR_PAD_LEFT);
+            $certNumber = 'CERT/'.date('Y').'/'.str_pad($event->id, 4, '0', STR_PAD_LEFT)
+                .'/'.str_pad($userId, 4, '0', STR_PAD_LEFT);
 
             $certificate = Certificate::firstOrCreate(
                 ['training_event_id' => $event->id, 'user_id' => $userId],
                 ['certificate_number' => $certNumber, 'issued_at' => now()]
             );
+
+            $learningPathProgressService->completeReferencedSteps('training_event', $event->uuid, $userId);
 
             return ApiResponse::success('Kelulusan disetujui.', [
                 'participant' => $participant,
@@ -1160,17 +1365,17 @@ class EventContentController extends Controller
         try {
             $data = $request->validate(['reason' => 'nullable|string|max:500']);
 
-            $event       = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
             $participant = EventParticipant::where('training_event_id', $event->id)
                 ->where('user_id', $userId)->firstOrFail();
 
             $participant->update([
                 'completion_status' => 'rejected',
-                'status'            => 'enrolled',
-                'completed_at'      => null,
-                'approved_by'       => $request->user()->id,
-                'approved_at'       => now(),
-                'rejection_reason'  => $data['reason'] ?? null,
+                'status' => 'enrolled',
+                'completed_at' => null,
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+                'rejection_reason' => $data['reason'] ?? null,
             ]);
 
             return ApiResponse::success('Kelulusan ditolak.');
@@ -1181,32 +1386,34 @@ class EventContentController extends Controller
         }
     }
 
-    public function bulkApproveCompletion(Request $request, string $uuid)
+    public function bulkApproveCompletion(Request $request, string $uuid, LearningPathProgressService $learningPathProgressService)
     {
         try {
             $data = $request->validate(['user_ids' => 'required|array', 'user_ids.*' => 'integer']);
 
-            $event        = $this->resolveEvent($uuid);
+            $event = $this->resolveEvent($uuid);
             $participants = EventParticipant::where('training_event_id', $event->id)
                 ->whereIn('user_id', $data['user_ids'])->get();
 
             foreach ($participants as $participant) {
                 $participant->update([
                     'completion_status' => 'approved',
-                    'status'            => 'completed',
-                    'completed_at'      => now(),
-                    'approved_by'       => $request->user()->id,
-                    'approved_at'       => now(),
-                    'rejection_reason'  => null,
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'approved_by' => $request->user()->id,
+                    'approved_at' => now(),
+                    'rejection_reason' => null,
                 ]);
 
-                $certNumber = 'CERT/' . date('Y') . '/' . str_pad($event->id, 4, '0', STR_PAD_LEFT)
-                    . '/' . str_pad($participant->user_id, 4, '0', STR_PAD_LEFT);
+                $certNumber = 'CERT/'.date('Y').'/'.str_pad($event->id, 4, '0', STR_PAD_LEFT)
+                    .'/'.str_pad($participant->user_id, 4, '0', STR_PAD_LEFT);
 
                 Certificate::firstOrCreate(
                     ['training_event_id' => $event->id, 'user_id' => $participant->user_id],
                     ['certificate_number' => $certNumber, 'issued_at' => now()]
                 );
+
+                $learningPathProgressService->completeReferencedSteps('training_event', $event->uuid, $participant->user_id);
             }
 
             return ApiResponse::success('Kelulusan massal disetujui.', ['approved_count' => $participants->count()]);

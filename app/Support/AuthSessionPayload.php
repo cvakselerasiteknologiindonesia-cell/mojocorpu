@@ -29,6 +29,7 @@ class AuthSessionPayload
             'expires_in' => $expiresIn,
             'user' => $loadedUser,
             'permissions' => self::permissions($loadedUser),
+            'requires_password_setup' => blank($user->password),
         ];
     }
 }

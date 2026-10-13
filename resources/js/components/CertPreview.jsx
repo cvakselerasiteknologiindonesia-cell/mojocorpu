@@ -57,7 +57,9 @@ function PreviewEl({ el, tokenValues }) {
   }
 
   if (el.type === 'table') {
-    const sessions = tokenValues.sessions || [];
+    const rows = el.dataSource === 'materials'
+      ? (tokenValues.materials || [])
+      : (tokenValues.sessions || []);
     const cols = el.columns || [
       { key: 'order', header: 'No.', width: 44 },
       { key: 'title', header: 'Mata Pelajaran', width: null },
@@ -83,7 +85,7 @@ function PreviewEl({ el, tokenValues }) {
             </tr>
           </thead>
           <tbody>
-            {sessions.map((row, idx) => (
+            {rows.map((row, idx) => (
               <tr key={idx}>
                 {cols.map((col) => (
                   <td key={col.key} style={{ padding: '4px 8px', background: idx % 2 === 0 ? (el.rowBg || '#ffffff') : (el.altRowBg || '#f6f6f8'), color: el.rowColor || '#1a1a1a', border: `1px solid ${el.borderColor || '#d0d0d0'}`, textAlign: col.key === 'order' ? 'center' : 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: col.key === 'title' ? 'normal' : 'nowrap' }}>

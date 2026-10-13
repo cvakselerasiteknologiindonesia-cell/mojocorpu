@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Award,
+  Bell,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   MoreHorizontal,
   Pencil,
   Search,
+  Sparkles,
   ThumbsDown,
   ThumbsUp,
   Trash2,
@@ -28,6 +30,12 @@ import KpiCard from '../../components/KpiCard.jsx';
 import { getRoleNames } from '../../utils/permissions.js';
 
 const STATUS_LABELS = { draft: 'Draft', scheduled: 'Scheduled', active: 'Aktif', rejected: 'Ditolak' };
+
+const NEW_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
+function isNewEvent(event) {
+  if (!event.created_at) return false;
+  return Date.now() - new Date(event.created_at).getTime() < NEW_THRESHOLD_MS;
+}
 const CREATOR_STATUSES = ['draft', 'scheduled'];
 
 const EMPTY_DRAFT = {
@@ -39,6 +47,10 @@ const EMPTY_DRAFT = {
   location: '',
   start_date: '',
   end_date: '',
+  is_paid: false,
+  price: '',
+  training_proposal_id: '',
+  proposal_title: '',
 };
 
 const CHECKLIST_FIELDS = [
@@ -74,7 +86,27 @@ function formatQuota(quota) {
   return quota === 0 ? 'Tidak terbatas' : `${quota} peserta`;
 }
 
+function formatPrice(isPaid, price) {
+  if (!isPaid) return 'Gratis';
+  if (!price && price !== 0) return 'Berbayar';
+  return 'Rp ' + Number(price).toLocaleString('id-ID');
+}
+
+function draftFromProposal(proposal) {
+  return {
+    ...EMPTY_DRAFT,
+    training_proposal_id: proposal.id || '',
+    proposal_title: proposal.title || '',
+    title: proposal.title || '',
+    description: [proposal.description, proposal.recommendation ? `Rekomendasi: ${proposal.recommendation}` : '']
+      .filter(Boolean)
+      .join('\n\n'),
+    status: 'draft',
+  };
+}
+
 function toPayload(draft) {
+  const isPaid = !!draft.is_paid;
   return {
     title: draft.title,
     description: draft.description || null,
@@ -84,6 +116,9 @@ function toPayload(draft) {
     quota: parseInt(draft.quota, 10) || 0,
     status: draft.status || 'draft',
     facilitator_ids: draft.facilitator_ids || [],
+    is_paid: isPaid,
+    price: isPaid ? (parseInt(draft.price, 10) || 0) : null,
+    training_proposal_id: draft.training_proposal_id || null,
   };
 }
 
@@ -97,6 +132,10 @@ function eventToDraft(event) {
     facilitator_ids: (event.facilitators || []).map((f) => f.id),
     start_date: event.start_date ? event.start_date.substring(0, 10) : '',
     end_date: event.end_date ? event.end_date.substring(0, 10) : '',
+    is_paid: event.is_paid ?? false,
+    price: event.price?.toString() || '',
+    training_proposal_id: event.training_proposal_id || '',
+    proposal_title: event.proposal?.title || '',
   };
 }
 
@@ -215,7 +254,7 @@ function AssignTemplateModal({ event, onClose, onSuccess }) {
   });
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop event-modal-backdrop" onClick={onClose}>
       <div className="modal-box" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <strong>Assign Template Sertifikat</strong>
@@ -276,6 +315,9 @@ function EventPreviewPanel({ draft, facilitators }) {
       <p className="mono-kicker text-muted">Pratinjau</p>
 
       <div className="event-preview-card">
+        {draft.proposal_title && (
+          <span className="event-proposal-chip">Dari proposal: {draft.proposal_title}</span>
+        )}
         <div className="event-preview-card-header">
           <span className={`status-badge ${statusBadgeClass(draft.status)}`}>
             {STATUS_LABELS[draft.status] || draft.status || 'Draft'}
@@ -297,6 +339,14 @@ function EventPreviewPanel({ draft, facilitators }) {
               {selectedFacilitators.length > 0
                 ? selectedFacilitators.map((f) => f.user?.name).filter(Boolean).join(', ')
                 : <em>Fasilitator belum dipilih</em>}
+            </span>
+          </div>
+          <div>
+            <span style={{ fontSize: 14 }}>💳</span>
+            <span>
+              {draft.is_paid
+                ? (draft.price ? `Rp ${Number(draft.price).toLocaleString('id-ID')}` : <em>Isi harga</em>)
+                : 'Gratis'}
             </span>
           </div>
         </div>
@@ -325,12 +375,14 @@ function EventPreviewPanel({ draft, facilitators }) {
 }
 
 function EventModal({ modal, draft, setDraft, onSave, onDelete, onApprove, onClose, isSaving, saveError, isSuperAdmin, isFacilitator, facilitators, facilitatorsLoading }) {
+  const [priceFocused, setPriceFocused] = useState(false);
+
   if (!modal) return null;
 
   const isForm = modal.type === 'create' || modal.type === 'edit';
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop event-modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-box event-modal-box" role="dialog" aria-modal="true">
         <div className="modal-head">
           <div>
@@ -360,9 +412,11 @@ function EventModal({ modal, draft, setDraft, onSave, onDelete, onApprove, onClo
               </div>
               <div><span>Fasilitator</span><strong>{facilitatorNames(modal.event)}</strong></div>
               <div><span>Kuota</span><strong>{formatQuota(modal.event.quota)}</strong></div>
+              <div><span>Harga</span><strong>{formatPrice(modal.event.is_paid, modal.event.price)}</strong></div>
               <div><span>Lokasi</span><strong>{modal.event.location || '—'}</strong></div>
               <div><span>Mulai</span><strong>{formatDate(modal.event.start_date) || '—'}</strong></div>
               <div><span>Selesai</span><strong>{formatDate(modal.event.end_date) || '—'}</strong></div>
+              <div><span>Sumber Proposal</span><strong>{modal.event.proposal?.title || '—'}</strong></div>
             </div>
             {modal.event.description && (
               <div className="resource-note" style={{ marginTop: 12 }}>{modal.event.description}</div>
@@ -393,6 +447,12 @@ function EventModal({ modal, draft, setDraft, onSave, onDelete, onApprove, onClo
           <form className="event-modal-body" onSubmit={onSave}>
             <div className="event-form-main">
               <div className="event-section-label">Identitas Event</div>
+
+              {draft.proposal_title && (
+                <div className="event-source-note">
+                  Event ini dibuat dari proposal <strong>{draft.proposal_title}</strong>.
+                </div>
+              )}
 
               <EventFormField label="Nama Event">
                 <input
@@ -492,6 +552,58 @@ function EventModal({ modal, draft, setDraft, onSave, onDelete, onApprove, onClo
                 </EventFormField>
               </div>
 
+              <div className="event-section-label" style={{ marginTop: 6 }}>Harga Pendaftaran</div>
+
+              <div className="event-field">
+                <span>Tipe</span>
+                <div className="status-chip-group">
+                  {[
+                    { value: false, label: '🎓 Gratis' },
+                    { value: true,  label: '💳 Berbayar' },
+                  ].map((opt) => (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      className={`status-chip ${!!draft.is_paid === opt.value ? 'active' : ''}`}
+                      onClick={() => setDraft((c) => ({ ...c, is_paid: opt.value, price: opt.value ? c.price : '' }))}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {draft.is_paid && (
+                <EventFormField label="Biaya Pendaftaran">
+                  <div className="event-quota-wrap">
+                    <span className="event-quota-suffix" style={{ order: -1, paddingRight: 0, paddingLeft: 10, fontWeight: 600 }}>Rp</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={
+                        priceFocused
+                          ? draft.price
+                          : (draft.price ? Number(draft.price).toLocaleString('id-ID') : '')
+                      }
+                      onFocus={() => setPriceFocused(true)}
+                      onBlur={() => setPriceFocused(false)}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, '').slice(0, 9);
+                        setDraft((c) => ({ ...c, price: raw }));
+                      }}
+                      placeholder="150.000"
+                      required
+                      style={{ paddingLeft: 6 }}
+                    />
+                  </div>
+                  {draft.price && !priceFocused && (
+                    <p className="event-quota-hint">
+                      {Number(draft.price).toLocaleString('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })}
+                    </p>
+                  )}
+                </EventFormField>
+              )}
+
               {saveError && (
                 <div className="form-error-visible">
                   {saveError.response?.data?.message || 'Gagal menyimpan. Coba lagi.'}
@@ -558,6 +670,7 @@ const FACILITATOR_ROLES = ['fasilitator-internal', 'fasilitator-eksternal'];
 export default function AdminOpdEvents({ session }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [modal, setModal] = useState(null);
   const [rowMenu, setRowMenu] = useState(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -590,8 +703,18 @@ export default function AdminOpdEvents({ session }) {
   const createMutation = useMutation({
     mutationFn: (payload) => api.post('/training-events', payload),
     onSuccess: () => { onSuccess(); toast.success('Event dibuat.'); },
-    onError: () => toast.error('Gagal membuat event.'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Gagal membuat event.'),
   });
+
+  useEffect(() => {
+    const proposal = location.state?.createFromProposal;
+    if (!proposal) return;
+
+    createMutation.reset();
+    setDraft(draftFromProposal(proposal));
+    setModal({ type: 'create', sourceProposal: proposal });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   const updateMutation = useMutation({
     mutationFn: ({ uuid, ...payload }) => api.put(`/training-events/${uuid}`, payload),
@@ -618,6 +741,11 @@ export default function AdminOpdEvents({ session }) {
     createMutation.reset();
     setDraft(EMPTY_DRAFT);
     setModal({ type: 'create' });
+  };
+
+  const openProposalPicker = () => {
+    toast.message('Pilih proposal yang sudah disetujui, lalu klik "Buat Event".');
+    navigate('/training-proposals');
   };
 
   const openEdit = (event) => {
@@ -694,7 +822,9 @@ export default function AdminOpdEvents({ session }) {
             <p className="mono-kicker text-muted">DAFTAR EVENT</p>
             <h2>Event Registry</h2>
           </div>
-          <button className="primary-button compact" onClick={openCreate}>Buat Event</button>
+          <button className="primary-button compact" onClick={isSuperAdmin ? openCreate : openProposalPicker}>
+            {isSuperAdmin ? 'Buat Event' : 'Pilih Proposal Disetujui'}
+          </button>
         </div>
 
         {isLoading && <TrainingEventListSkeleton />}
@@ -705,15 +835,47 @@ export default function AdminOpdEvents({ session }) {
           </div>
         )}
 
-        {!isLoading && !isError && (
+        {!isLoading && !isError && (() => {
+          const scheduledEvents = events.filter((e) => e.status === 'scheduled');
+          const newEvents = events.filter(isNewEvent);
+          return (
           <div className="work-list">
+            {isSuperAdmin && scheduledEvents.length > 0 && (
+              <div className="event-pending-notice">
+                <Bell size={15} />
+                <span>
+                  <strong>{scheduledEvents.length} event</strong> menunggu persetujuan Anda
+                </span>
+                <em className="event-pending-count">{scheduledEvents.length}</em>
+              </div>
+            )}
+            {!isSuperAdmin && newEvents.length > 0 && (
+              <div className="event-pending-notice event-pending-notice--new">
+                <Sparkles size={15} />
+                <span>
+                  <strong>{newEvents.length} event baru</strong> ditambahkan dalam 7 hari terakhir
+                </span>
+              </div>
+            )}
+
             {events.length === 0 && (
               <div className="resource-note">Belum ada event. Klik &ldquo;Buat Event&rdquo; untuk menambahkan.</div>
             )}
             {events.map((event) => (
-              <div className="work-row crud-row training-event-row" key={event.uuid}>
+              <div
+                className={`work-row crud-row training-event-row${event.status === 'scheduled' && isSuperAdmin ? ' event-row--pending' : ''}`}
+                key={event.uuid}
+              >
                 <div>
-                  <strong>{event.title}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <strong>{event.title}</strong>
+                    {isNewEvent(event) && (
+                      <span className="event-new-pill"><Sparkles size={9} /> Baru</span>
+                    )}
+                    {event.status === 'scheduled' && isSuperAdmin && (
+                      <span className="event-pending-pill"><Bell size={9} /> Perlu Ditinjau</span>
+                    )}
+                  </div>
                   <span>
                     {facilitatorNames(event)}
                     {event.quota != null
@@ -730,10 +892,22 @@ export default function AdminOpdEvents({ session }) {
                       <Award size={10} /> {event.certificate_template.name}
                     </span>
                   )}
+                  {event.proposal && (
+                    <span className="event-proposal-chip">
+                      Dari proposal: {event.proposal.title}
+                    </span>
+                  )}
                 </div>
-                <em className={`status-badge ${statusBadgeClass(event.status)}`}>
-                  {STATUS_LABELS[event.status] || event.status}
-                </em>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <span className={`ev-price-badge ${event.is_paid ? 'paid' : 'free'}`} style={{ fontSize: 10 }}>
+                    {event.is_paid
+                      ? `Rp ${Number(event.price || 0).toLocaleString('id-ID')}`
+                      : 'Gratis'}
+                  </span>
+                  <em className={`status-badge ${statusBadgeClass(event.status)}`}>
+                    {STATUS_LABELS[event.status] || event.status}
+                  </em>
+                </div>
                 <div className="row-actions">
                   {event.certificate_template && (
                     <button
@@ -799,7 +973,8 @@ export default function AdminOpdEvents({ session }) {
               </div>
             ))}
           </div>
-        )}
+          );
+        })()}
       </section>
 
       <EventModal

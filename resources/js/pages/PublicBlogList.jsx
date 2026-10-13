@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BookOpenCheck, Calendar, Clock, Search } from 'lucide-react';
 import api from '../api.js';
 
@@ -36,8 +36,9 @@ function PublicBlogSkeleton() {
 }
 
 export default function PublicBlogList() {
+  const [searchParams] = useSearchParams();
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['public-blog-list', page, search],

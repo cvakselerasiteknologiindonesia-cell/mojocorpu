@@ -283,7 +283,7 @@ export default function ThemeSettings() {
   const { current, ui, setPreset, setCustom, resetCustom, setUiPref, resetUi } = useTheme();
 
   const [pickerVal, setPickerVal] = useState(
-    current.custom?.primary || THEMES[current.preset]?.preview[0] || '#8a05ff'
+    current.custom?.primary || THEMES[current.preset]?.preview[0] || '#c42007'
   );
 
   const isCustomActive = !!current.custom;

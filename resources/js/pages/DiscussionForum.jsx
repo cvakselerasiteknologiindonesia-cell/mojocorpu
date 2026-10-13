@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { safe } from '../utils/sanitize.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -123,7 +124,7 @@ function MediaPopover({ mode, editor, onClose }) {
       }
       onClose();
     } catch {
-      toast.error('Gagal mengunggah file.');
+      toast.error('Gagal mengunggah berkas.');
     } finally {
       setUploading(false);
     }
@@ -138,14 +139,14 @@ function MediaPopover({ mode, editor, onClose }) {
         <div className="df-popover-tabs">
           {isImage ? (
             <>
-              <button className={`df-popover-tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}><Upload size={12} /> Upload</button>
-              <button className={`df-popover-tab${tab === 'url' ? ' active' : ''}`} onClick={() => setTab('url')}><Link2 size={12} /> URL</button>
+              <button className={`df-popover-tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}><Upload size={12} /> Unggah</button>
+              <button className={`df-popover-tab${tab === 'url' ? ' active' : ''}`} onClick={() => setTab('url')}><Link2 size={12} /> Tautan</button>
             </>
           ) : (
             <>
               <button className={`df-popover-tab${tab === 'youtube' ? ' active' : ''}`} onClick={() => setTab('youtube')}>YouTube</button>
-              <button className={`df-popover-tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}><Upload size={12} /> Upload</button>
-              <button className={`df-popover-tab${tab === 'url' ? ' active' : ''}`} onClick={() => setTab('url')}><Link2 size={12} /> URL</button>
+              <button className={`df-popover-tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}><Upload size={12} /> Unggah</button>
+              <button className={`df-popover-tab${tab === 'url' ? ' active' : ''}`} onClick={() => setTab('url')}><Link2 size={12} /> Tautan</button>
             </>
           )}
         </div>
@@ -226,8 +227,8 @@ function BodyEditor({ initialContent, onChange }) {
   return (
     <div className="df-editor-wrap">
       <div className="df-toolbar">
-        <TbBtn action={() => e.chain().focus().toggleBold().run()} isActive={e.isActive('bold')} title="Bold"><Bold size={14} /></TbBtn>
-        <TbBtn action={() => e.chain().focus().toggleItalic().run()} isActive={e.isActive('italic')} title="Italic"><Italic size={14} /></TbBtn>
+        <TbBtn action={() => e.chain().focus().toggleBold().run()} isActive={e.isActive('bold')} title="Tebal"><Bold size={14} /></TbBtn>
+        <TbBtn action={() => e.chain().focus().toggleItalic().run()} isActive={e.isActive('italic')} title="Miring"><Italic size={14} /></TbBtn>
         <TbBtn action={() => e.chain().focus().toggleStrike().run()} isActive={e.isActive('strike')} title="Coret"><Strikethrough size={14} /></TbBtn>
         {sep}
         <TbBtn action={() => e.chain().focus().toggleBulletList().run()} isActive={e.isActive('bulletList')} title="Poin"><List size={14} /></TbBtn>
@@ -262,8 +263,8 @@ function BodyEditor({ initialContent, onChange }) {
           )}
         </div>
         {sep}
-        <TbBtn action={() => e.chain().focus().undo().run()} title="Undo"><Undo2 size={14} /></TbBtn>
-        <TbBtn action={() => e.chain().focus().redo().run()} title="Redo"><Redo2 size={14} /></TbBtn>
+        <TbBtn action={() => e.chain().focus().undo().run()} title="Urungkan"><Undo2 size={14} /></TbBtn>
+        <TbBtn action={() => e.chain().focus().redo().run()} title="Ulangi"><Redo2 size={14} /></TbBtn>
       </div>
       <div className="df-editor-body">
         <EditorContent editor={editor} />
@@ -297,7 +298,7 @@ function ThreadModal({ initial, onClose, onSave, isSaving }) {
 
         {/* Sheet header */}
         <div className="df-compose-header">
-          <span className="df-compose-label">{isEdit ? 'Edit Diskusi' : 'Diskusi Baru'}</span>
+          <span className="df-compose-label">{isEdit ? 'Ubah Diskusi' : 'Diskusi Baru'}</span>
           <button className="icon-button" onClick={onClose} title="Tutup">✕</button>
         </div>
 
@@ -387,7 +388,7 @@ function CommentRow({ comment, currentUserId, canDelete, onUpdate, onDelete }) {
       {(isOwn || canDelete) && !editing && (
         <div className="df-comment-actions">
           {isOwn && (
-            <button className="icon-action" title="Edit" onClick={() => setEditing(true)}><Edit2 size={12} /></button>
+            <button className="icon-action" title="Ubah" onClick={() => setEditing(true)}><Edit2 size={12} /></button>
           )}
           <button className="icon-action danger-icon" title="Hapus" onClick={() => onDelete(comment.id)}><Trash2 size={12} /></button>
         </div>
@@ -566,7 +567,7 @@ function ThreadDetail({ uuid, session, onClose }) {
         {(isOwn || canDelete) && (
           <div className="df-detail-actions">
             {(isOwn || canDelete) && (
-              <button className="icon-action" title="Edit" onClick={() => setEditThread(true)}><Edit2 size={13} /></button>
+              <button className="icon-action" title="Ubah" onClick={() => setEditThread(true)}><Edit2 size={13} /></button>
             )}
             {(isOwn || canDelete) && (
               <button
@@ -588,7 +589,7 @@ function ThreadDetail({ uuid, session, onClose }) {
 
       {/* Thread body */}
       {/* Internal app — HTML from authenticated users only */}
-      <div className="df-thread-body df-rich-content" dangerouslySetInnerHTML={{ __html: thread.body }} />
+      <div className="df-thread-body df-rich-content" dangerouslySetInnerHTML={{ __html: safe(thread.body) }} />
 
       {/* Comments */}
       <div className="df-comments-section">
@@ -718,8 +719,8 @@ export default function DiscussionForum({ session }) {
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Engagement</p>
-        <h1>Discussion Forum</h1>
+        <p className="mono-kicker text-muted">Kolaborasi</p>
+        <h1>Forum Diskusi</h1>
       </div>
 
       <div className="fm-layout">
@@ -767,13 +768,13 @@ export default function DiscussionForum({ session }) {
                 className="outline-button compact"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
-              >‹ Prev</button>
+              >‹ Sebelumnya</button>
               <span>{page} / {meta.last_page}</span>
               <button
                 className="outline-button compact"
                 disabled={page >= (meta?.last_page ?? 1)}
                 onClick={() => setPage((p) => p + 1)}
-              >Next ›</button>
+              >Berikutnya ›</button>
             </div>
           )}
         </aside>

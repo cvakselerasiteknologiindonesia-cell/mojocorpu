@@ -35,49 +35,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('completion/bulk-approve', [EventContentController::class, 'bulkApproveCompletion']);
     });
 
-    Route::prefix('training-events/{uuid}')->middleware('permission:update training event')->group(function () {
-        // Learning Path (sessions)
+    Route::prefix('training-events/{uuid}')->middleware('permission:update training event|manage own class sessions')->group(function () {
         Route::get('sessions', [EventContentController::class, 'indexSessions']);
         Route::post('sessions', [EventContentController::class, 'storeSession']);
         Route::put('sessions/{sessionId}', [EventContentController::class, 'updateSession']);
         Route::delete('sessions/{sessionId}', [EventContentController::class, 'destroySession']);
+    });
 
-        // Learning Materials
+    Route::prefix('training-events/{uuid}')->middleware('permission:update training event|manage own teaching materials')->group(function () {
         Route::get('materials', [EventContentController::class, 'indexMaterials']);
         Route::post('materials', [EventContentController::class, 'storeMaterial']);
         Route::put('materials/{materialId}', [EventContentController::class, 'updateMaterial']);
         Route::delete('materials/{materialId}', [EventContentController::class, 'destroyMaterial']);
+    });
 
-        // Assessments
-        Route::get('assessments', [EventContentController::class, 'indexAssessments']);
-        Route::post('assessments', [EventContentController::class, 'storeAssessment']);
-        Route::put('assessments/{assessmentId}', [EventContentController::class, 'updateAssessment']);
-        Route::delete('assessments/{assessmentId}', [EventContentController::class, 'destroyAssessment']);
-
-        // Assessment Questions
-        Route::get('assessments/{assessmentId}/questions', [EventContentController::class, 'indexQuestions']);
-        Route::post('assessments/{assessmentId}/questions', [EventContentController::class, 'storeQuestion']);
-        Route::put('assessments/{assessmentId}/questions/{questionId}', [EventContentController::class, 'updateQuestion']);
-        Route::delete('assessments/{assessmentId}/questions/{questionId}', [EventContentController::class, 'destroyQuestion']);
-
-        Route::post('assessments/{assessmentId}/questions/import', [EventContentController::class, 'importQuestions']);
-
-        // Assessment Submissions
-        Route::get('assessments/{assessmentId}/submissions', [EventContentController::class, 'indexSubmissions']);
-        Route::put('assessments/{assessmentId}/submissions/{submissionId}/grade', [EventContentController::class, 'gradeSubmission']);
-
-        // Participants
-        Route::get('participants', [EventContentController::class, 'indexParticipants']);
-        Route::post('participants', [EventContentController::class, 'storeParticipant']);
-        Route::get('participants/search', [EventContentController::class, 'searchParticipantCandidates']);
-        Route::get('participants/opds', [EventContentController::class, 'listOpdsForEnrollment']);
-        Route::post('participants/bulk-opd', [EventContentController::class, 'bulkEnrollByOpd']);
-        Route::post('participants/bulk-all', [EventContentController::class, 'bulkEnrollAll']);
-        Route::post('participants/import', [EventContentController::class, 'importParticipants']);
-        Route::post('participants/bulk-remove', [EventContentController::class, 'bulkRemoveParticipants']);
-        Route::delete('participants/{userId}', [EventContentController::class, 'destroyParticipant']);
-
-        // Attendance
+    Route::prefix('training-events/{uuid}')->middleware('permission:update training event|monitor participant attendance')->group(function () {
         Route::get('attendance', [EventContentController::class, 'indexAttendance']);
         Route::post('attendance/bulk-mark', [EventContentController::class, 'bulkMarkAttendance']);
         Route::post('attendance/bulk-unmark', [EventContentController::class, 'bulkUnmarkAttendance']);
@@ -87,5 +59,38 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('sessions/{sessionId}/attendance/bulk-unmark', [EventContentController::class, 'bulkUnmarkSessionAttendance']);
         Route::post('sessions/{sessionId}/attendance/{userId}/mark', [EventContentController::class, 'markSessionAttendance']);
         Route::delete('sessions/{sessionId}/attendance/{userId}', [EventContentController::class, 'unmarkSessionAttendance']);
+    });
+
+    Route::prefix('training-events/{uuid}')->middleware('permission:update training event|create quiz')->group(function () {
+        Route::get('assessments', [EventContentController::class, 'indexAssessments']);
+        Route::post('assessments', [EventContentController::class, 'storeAssessment']);
+        Route::put('assessments/{assessmentId}', [EventContentController::class, 'updateAssessment']);
+        Route::delete('assessments/{assessmentId}', [EventContentController::class, 'destroyAssessment']);
+
+        Route::get('assessments/{assessmentId}/questions', [EventContentController::class, 'indexQuestions']);
+        Route::post('assessments/{assessmentId}/questions', [EventContentController::class, 'storeQuestion']);
+        Route::put('assessments/{assessmentId}/questions/{questionId}', [EventContentController::class, 'updateQuestion']);
+        Route::delete('assessments/{assessmentId}/questions/{questionId}', [EventContentController::class, 'destroyQuestion']);
+        Route::post('assessments/{assessmentId}/questions/import', [EventContentController::class, 'importQuestions']);
+    });
+
+    Route::prefix('training-events/{uuid}')->middleware('permission:update training event|input participant grades')->group(function () {
+        Route::get('assessments/{assessmentId}/submissions', [EventContentController::class, 'indexSubmissions']);
+        Route::put('assessments/{assessmentId}/submissions/{submissionId}/grade', [EventContentController::class, 'gradeSubmission']);
+    });
+
+    Route::prefix('training-events/{uuid}')->middleware('permission:update training event|view assigned class participants')->group(function () {
+        Route::get('participants', [EventContentController::class, 'indexParticipants']);
+        Route::get('participants/search', [EventContentController::class, 'searchParticipantCandidates']);
+        Route::get('participants/opds', [EventContentController::class, 'listOpdsForEnrollment']);
+    });
+
+    Route::prefix('training-events/{uuid}')->middleware('permission:update training event')->group(function () {
+        Route::post('participants', [EventContentController::class, 'storeParticipant']);
+        Route::post('participants/bulk-opd', [EventContentController::class, 'bulkEnrollByOpd']);
+        Route::post('participants/bulk-all', [EventContentController::class, 'bulkEnrollAll']);
+        Route::post('participants/import', [EventContentController::class, 'importParticipants']);
+        Route::post('participants/bulk-remove', [EventContentController::class, 'bulkRemoveParticipants']);
+        Route::delete('participants/{userId}', [EventContentController::class, 'destroyParticipant']);
     });
 });

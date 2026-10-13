@@ -10,8 +10,14 @@ class OPDRepository
 {
     public function stats(): array
     {
-        $total  = OPD::count();
+        $total = OPD::count();
         $active = OPD::where('is_active', true)->count();
+        $withoutContact = OPD::where(function ($q) {
+            $q->whereNull('email')
+                ->orWhere('email', '')
+                ->orWhereNull('phone')
+                ->orWhere('phone', '');
+        })->count();
 
         $totalAsn = DB::table('users')
             ->whereNotNull('opd_name')
@@ -25,11 +31,17 @@ class OPDRepository
             ->count('organization_unit_name');
 
         return [
-            'total'       => $total,
-            'active'      => $active,
-            'inactive'    => $total - $active,
-            'total_asn'   => $totalAsn,
+            'total' => $total,
+            'active' => $active,
+            'inactive' => $total - $active,
+            'total_asn' => $totalAsn,
             'total_units' => $totalUnits,
+            'without_asn' => OPD::query()
+                ->whereNotExists(fn ($q) => $q->selectRaw('1')
+                    ->from('users')
+                    ->whereColumn('users.opd_name', 'opds.name'))
+                ->count(),
+            'without_contact' => $withoutContact,
         ];
     }
 
@@ -41,9 +53,8 @@ class OPDRepository
                 DB::raw('(SELECT COUNT(*) FROM users WHERE users.opd_name = opds.name) as asn_count'),
                 DB::raw('(SELECT COUNT(DISTINCT users.organization_unit_name) FROM users WHERE users.opd_name = opds.name AND users.organization_unit_name IS NOT NULL AND users.organization_unit_name != \'\') as unit_count'),
             ])
-            ->when(!empty($filters['search']), fn ($q) => $q->where(fn ($q2) =>
-                $q2->where('opds.name', 'like', '%'.$filters['search'].'%')
-                   ->orWhere('opds.code', 'like', '%'.$filters['search'].'%')
+            ->when(! empty($filters['search']), fn ($q) => $q->where(fn ($q2) => $q2->where('opds.name', 'like', '%'.$filters['search'].'%')
+                ->orWhere('opds.code', 'like', '%'.$filters['search'].'%')
             ))
             ->orderBy('opds.name')
             ->paginate($perPage);
@@ -61,16 +72,44 @@ class OPDRepository
             OPD::query()->updateOrCreate(
                 ['uuid' => $rec['uuid']],
                 [
-                    'code'      => $rec['code'] ?? null,
-                    'name'      => $rec['name'],
-                    'address'   => $rec['address'] ?? null,
-                    'phone'     => $rec['phone'] ?? null,
-                    'email'     => $rec['email'] ?? null,
+                    'code' => $rec['code'] ?? null,
+                    'name' => $rec['name'],
+                    'address' => $rec['address'] ?? null,
+                    'phone' => $rec['phone'] ?? null,
+                    'email' => $rec['email'] ?? null,
                     'is_active' => (bool) ($rec['is_active'] ?? true),
                 ]
             );
             $count++;
         }
+
+        return $count;
+    }
+
+    public function upsertFromSimpegSatker(array $records): int
+    {
+        $count = 0;
+
+        foreach ($records as $rec) {
+            $code = trim((string) ($rec['satker_id'] ?? ''));
+            $name = trim((string) ($rec['nama'] ?? ''));
+
+            if ($code === '' || $name === '') {
+                continue;
+            }
+
+            OPD::query()->updateOrCreate(
+                ['code' => $code],
+                [
+                    'name' => $name,
+                    'address' => $rec['alamat'] ?? null,
+                    'is_active' => true,
+                ]
+            );
+
+            $count++;
+        }
+
         return $count;
     }
 }

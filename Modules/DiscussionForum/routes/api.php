@@ -17,4 +17,6 @@ Route::middleware(['auth:sanctum', 'permission:view discussion forum'])
         Route::delete('threads/{uuid}/comments/{commentId}', [DiscussionForumController::class, 'destroyComment']);
 
         Route::post('media', [DiscussionForumController::class, 'uploadMedia']);
+        // [M5] Serve media via authenticated route (local disk)
+        Route::get('media/{filename}', [DiscussionForumController::class, 'serveMedia']);
     });

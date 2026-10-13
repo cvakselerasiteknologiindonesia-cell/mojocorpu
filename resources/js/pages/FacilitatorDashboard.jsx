@@ -15,29 +15,29 @@ export default function FacilitatorDashboard({ session }) {
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Facilitator Workspace</p>
-        <h1>Facilitator Dashboard</h1>
+        <p className="mono-kicker text-muted">Ruang Kerja Fasilitator</p>
+        <h1>Dashboard Fasilitator</h1>
       </div>
 
       <section className="enterprise-card">
         <div className="section-title">
           <div>
-            <p className="mono-kicker text-muted">Profile</p>
-            <h2>{session.user?.name || 'Facilitator'}</h2>
+            <p className="mono-kicker text-muted">Profil</p>
+            <h2>{session.user?.name || 'Fasilitator'}</h2>
           </div>
           <span className="badge-active">{getRoleNames(session.user).join(', ')}</span>
         </div>
         <div className="resource-note">
-          {session.user?.nip || session.user?.email} · {session.user?.position_name || 'Instructor'}
+          {session.user?.nip || session.user?.email} · {session.user?.position_name || 'Instruktur'}
         </div>
       </section>
 
       <div className="kpi-grid">
         {[
-          ['Assigned Classes', stats.assigned_classes ?? 0, 'Kelas yang menjadi tanggung jawab Anda'],
-          ['Participants', stats.participants ?? 0, 'Peserta dalam kelas yang ditugaskan'],
-          ['Materials', stats.materials_uploaded ?? 0, 'Materi yang telah diunggah'],
-          ['Pending Evaluations', stats.pending_evaluations ?? 0, 'Evaluasi yang perlu ditinjau'],
+          ['Kelas Ditugaskan', stats.assigned_classes ?? 0, 'Kelas yang menjadi tanggung jawab Anda'],
+          ['Peserta', stats.participants ?? 0, 'Peserta dalam kelas yang ditugaskan'],
+          ['Materi', stats.materials_uploaded ?? 0, 'Materi yang telah diunggah'],
+          ['Evaluasi Menunggu', stats.pending_evaluations ?? 0, 'Evaluasi yang perlu ditinjau'],
         ].map(([label, value, note]) => (
           <KpiCard key={label} label={label} value={value} note={note} loading={isLoading} />
         ))}
@@ -45,8 +45,8 @@ export default function FacilitatorDashboard({ session }) {
 
       <section className="enterprise-card">
         <div className="section-title">
-          <h2>Assigned Training Schedule</h2>
-          <span className="badge-active">OWN CLASSES</span>
+          <h2>Jadwal Pelatihan Ditugaskan</h2>
+          <span className="badge-active">KELAS SAYA</span>
         </div>
         <div className="resource-note">
           {schedule.length === 0

@@ -16,7 +16,7 @@ class BlogPostController extends Controller
             ->with(['author:id,name,opd_name', 'blogCategory:id,uuid,name,slug'])
             ->where('status', 'published')
             ->when($request->filled('search'), function ($query) use ($request) {
-                $search = '%' . $request->string('search')->trim()->toString() . '%';
+                $search = '%'.$request->string('search')->trim()->toString().'%';
 
                 $query->where(function ($q) use ($search) {
                     $q->where('title', 'like', $search)
@@ -46,6 +46,34 @@ class BlogPostController extends Controller
         return ApiResponse::success('Published blog post retrieved', $this->payload($post));
     }
 
+    public function show(string $slug)
+    {
+        $post = BlogPost::query()
+            ->with(['author:id,name,opd_name', 'blogCategory:id,uuid,name,slug'])
+            ->where('slug', $slug)
+            ->where('status', 'published')
+            ->firstOrFail();
+
+        $recentPosts = BlogPost::query()
+            ->with('blogCategory:id,name,slug')
+            ->where('status', 'published')
+            ->whereKeyNot($post->getKey())
+            ->latest('published_at')
+            ->latest()
+            ->limit(3)
+            ->get();
+
+        $categories = BlogCategory::query()
+            ->whereHas('posts', fn ($query) => $query->where('status', 'published'))
+            ->withCount(['posts as published_posts_count' => fn ($query) => $query->where('status', 'published')])
+            ->orderBy('name')
+            ->get();
+
+        $readingMinutes = max(1, (int) ceil(str_word_count(strip_tags($post->body)) / 220));
+
+        return view('blog-detail', compact('post', 'recentPosts', 'categories', 'readingMinutes'));
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -68,7 +96,7 @@ class BlogPostController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = '%' . $request->string('search')->trim()->toString() . '%';
+            $search = '%'.$request->string('search')->trim()->toString().'%';
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', $search)
                     ->orWhere('excerpt', 'like', $search)
@@ -122,7 +150,7 @@ class BlogPostController extends Controller
         $path = $data['image']->store('blog-posts', 'public');
 
         return ApiResponse::success('Image uploaded', [
-            'url' => '/storage/' . ltrim($path, '/'),
+            'url' => '/storage/'.ltrim($path, '/'),
             'path' => $path,
         ], 201);
     }

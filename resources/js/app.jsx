@@ -1,17 +1,25 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import useStoredSession from './hooks/useStoredSession.js';
-import LandingPage from './pages/LandingPage.jsx';
-import LoginPage from './pages/LoginPage.jsx';
-import PublicBlogPost from './pages/PublicBlogPost.jsx';
-import PublicBlogList from './pages/PublicBlogList.jsx';
-import Shell from './pages/Shell.jsx';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext.jsx';
 
 const queryClient = new QueryClient();
+const LandingPage = React.lazy(() => import('./pages/LandingPage.jsx'));
+const LoginPage = React.lazy(() => import('./pages/LoginPage.jsx'));
+const PublicBlogPost = React.lazy(() => import('./pages/PublicBlogPost.jsx'));
+const PublicBlogList = React.lazy(() => import('./pages/PublicBlogList.jsx'));
+const Shell = React.lazy(() => import('./pages/Shell.jsx'));
+
+function AppLoader() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: '#806b64', fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13 }}>
+      Memuat aplikasi...
+    </div>
+  );
+}
 
 function App() {
   const [session, setSession] = useStoredSession();
@@ -29,12 +37,12 @@ function App() {
   };
 
   const handleLogout = () => {
-    setSession(null);
-    navigate('/', { replace: true });
+    localStorage.removeItem('corpu_session');
+    window.location.assign('/');
   };
 
-  const handleUpdateSession = (updatedUser) => {
-    setSession({ ...session, user: { ...session?.user, ...updatedUser } });
+  const handleUpdateSession = (updatedUser, sessionPatch = {}) => {
+    setSession({ ...session, ...sessionPatch, user: { ...session?.user, ...updatedUser } });
   };
 
   if (!session) {
@@ -83,7 +91,9 @@ createRoot(document.getElementById('root')).render(
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <App />
+          <Suspense fallback={<AppLoader />}>
+            <App />
+          </Suspense>
           <ThemedToaster />
         </BrowserRouter>
       </QueryClientProvider>

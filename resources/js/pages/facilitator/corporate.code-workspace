@@ -7,13 +7,9 @@
 		{
 			"name": "corporateuniversity-sso",
 			"path": "../../../../../corporateuniversity-sso"
-		},
-		{
-			"name": "weeding2",
-			"path": "../../../../../../../../Users/deniprasetio/Learn/bootcamp/tailwind/weeding2"
 		}
 	],
 	"settings": {
-		"liveServer.settings.multiRootWorkspaceName": "weeding"
+		"liveServer.settings.multiRootWorkspaceName": "landingpage"
 	}
 }

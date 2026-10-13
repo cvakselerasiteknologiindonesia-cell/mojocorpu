@@ -14,5 +14,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('profile', [ProfileController::class, 'show']);
     Route::put('profile', [ProfileController::class, 'update']);
     Route::post('profile/avatar', [ProfileController::class, 'uploadAvatar']);
-    Route::post('profile/change-password', [ProfileController::class, 'changePassword']);
+    Route::post('profile/set-password', [ProfileController::class, 'setPassword'])->middleware('throttle:5,1');
+    Route::post('profile/change-password', [ProfileController::class, 'changePassword'])->middleware('throttle:5,1');
 });

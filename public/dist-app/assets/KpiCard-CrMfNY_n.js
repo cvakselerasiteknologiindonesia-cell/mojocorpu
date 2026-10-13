@@ -1,0 +1,1 @@
+import{n as e}from"./api-p0O5BgxF.js";var t=e();function n({label:e,value:n,note:r,loading:i=!1}){return(0,t.jsxs)(`section`,{className:`kpi-card`,children:[(0,t.jsx)(`div`,{className:`kpi-value`,children:i?`-`:n}),(0,t.jsx)(`div`,{className:`kpi-label`,children:e}),(0,t.jsx)(`p`,{children:r}),(0,t.jsx)(`div`,{className:`kpi-bar`,children:(0,t.jsx)(`span`,{})})]})}export{n as t};

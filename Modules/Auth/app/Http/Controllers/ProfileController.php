@@ -3,7 +3,6 @@
 namespace Modules\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Support\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,12 +31,12 @@ class ProfileController extends Controller
             $assessRow = DB::table('assessment_submissions')
                 ->where('user_id', $user->id)
                 ->whereNotNull('score')
-                ->selectRaw("
+                ->selectRaw('
                     COUNT(*) as total,
                     ROUND(AVG(score), 1) as avg_score,
                     MAX(score) as best_score,
                     SUM(is_passed = 1) as passed
-                ")->first();
+                ')->first();
 
             // Recent events
             $recentEvents = DB::table('event_participants as ep')
@@ -74,39 +73,43 @@ class ProfileController extends Controller
 
             return ApiResponse::success('Profile retrieved', [
                 'user' => [
-                    'id'                    => $user->id,
-                    'uuid'                  => $user->uuid,
-                    'name'                  => $user->name,
-                    'nip'                   => $user->nip,
-                    'email'                 => $user->email,
-                    'opd_name'              => $user->opd_name,
-                    'organization_unit_name'=> $user->organization_unit_name,
-                    'position_name'         => $user->position_name,
-                    'employee_status'       => $user->employee_status,
-                    'user_type'             => $user->user_type,
-                    'photo_url'             => self::resolvePhotoUrl($user->photo_url),
-                    'is_active'             => $user->is_active,
-                    'last_login_at'         => $user->last_login_at,
-                    'created_at'            => $user->created_at,
-                    'roles'                 => $roles,
+                    'id' => $user->id,
+                    'uuid' => $user->uuid,
+                    'name' => $user->name,
+                    'nip' => $user->nip,
+                    'email' => $user->email,
+                    'opd_name' => $user->opd_name,
+                    'organization_unit_name' => $user->organization_unit_name,
+                    'position_name' => $user->position_name,
+                    'employee_status' => $user->employee_status,
+                    'user_type' => $user->user_type,
+                    'photo_url' => self::resolvePhotoUrl($user->photo_url),
+                    'is_active' => $user->is_active,
+                    'has_password' => filled($user->password),
+                    'auth_provider' => $user->sso_user_id ? 'sso_asn' : 'local',
+                    'synced_from' => $user->sso_user_id ? 'SIMPEG / SSO ASN' : 'Data lokal CorpU',
+                    'last_login_at' => $user->last_login_at,
+                    'created_at' => $user->created_at,
+                    'roles' => $roles,
                 ],
                 'stats' => [
-                    'events_total'     => (int) ($eventsRow->total ?? 0),
+                    'events_total' => (int) ($eventsRow->total ?? 0),
                     'events_completed' => (int) ($eventsRow->completed ?? 0),
-                    'assessments_total'=> (int) ($assessRow->total ?? 0),
-                    'avg_score'        => (float) ($assessRow->avg_score ?? 0),
-                    'best_score'       => (int) ($assessRow->best_score ?? 0),
-                    'passed_count'     => (int) ($assessRow->passed ?? 0),
+                    'assessments_total' => (int) ($assessRow->total ?? 0),
+                    'avg_score' => (float) ($assessRow->avg_score ?? 0),
+                    'best_score' => (int) ($assessRow->best_score ?? 0),
+                    'passed_count' => (int) ($assessRow->passed ?? 0),
                 ],
                 'wallet' => [
                     'balance' => (int) ($wallet?->balance ?? 0),
                 ],
-                'badges'        => $badges,
-                'streak'        => $streak,
+                'badges' => $badges,
+                'streak' => $streak,
                 'recent_events' => $recentEvents,
             ]);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -115,16 +118,18 @@ class ProfileController extends Controller
     public function update(Request $request)
     {
         $data = $request->validate([
-            'name'          => 'sometimes|string|max:255',
-            'email'         => 'sometimes|nullable|email|unique:users,email,'.$request->user()->id,
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|nullable|email|unique:users,email,'.$request->user()->id,
             'position_name' => 'sometimes|nullable|string|max:255',
         ]);
 
         try {
             $request->user()->update($data);
+
             return ApiResponse::success('Profil diperbarui.', $request->user()->fresh());
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -132,7 +137,7 @@ class ProfileController extends Controller
     /** POST /api/profile/avatar */
     public function uploadAvatar(Request $request)
     {
-        $request->validate(['avatar' => 'required|image|max:2048']);
+        $request->validate(['avatar' => 'required|image|mimes:jpeg,jpg,png,webp|max:2048']);
 
         try {
             $user = $request->user();
@@ -155,6 +160,7 @@ class ProfileController extends Controller
             return ApiResponse::success('Avatar diperbarui.', ['photo_url' => $url]);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -164,7 +170,7 @@ class ProfileController extends Controller
     {
         $data = $request->validate([
             'current_password' => 'required|string',
-            'password'         => 'required|string|min:8|confirmed',
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
         $user = $request->user();
@@ -174,7 +180,35 @@ class ProfileController extends Controller
         }
 
         $user->update(['password' => Hash::make($data['password'])]);
+
         return ApiResponse::success('Password berhasil diubah.');
+    }
+
+    /** POST /api/profile/set-password */
+    public function setPassword(Request $request)
+    {
+        $data = $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->password) {
+            return ApiResponse::error('Password akun sudah tersedia. Gunakan menu ganti password.', 422);
+        }
+
+        $user->update(['password' => Hash::make($data['password'])]);
+
+        Log::info('Local password created for SSO user', [
+            'user_id' => $user->id,
+            'nip' => $user->nip,
+            'email' => $user->email,
+        ]);
+
+        return ApiResponse::success('Password lokal berhasil dibuat.', [
+            'user' => $user->fresh()->load('roles:id,name'),
+            'requires_password_setup' => false,
+        ]);
     }
 
     /**

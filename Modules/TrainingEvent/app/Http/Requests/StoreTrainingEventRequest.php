@@ -18,12 +18,14 @@ class StoreTrainingEventRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'location' => ['nullable', 'string', 'max:255'],
-            'facilitator_ids'   => ['nullable', 'array'],
+            'facilitator_ids' => ['nullable', 'array'],
             'facilitator_ids.*' => ['integer', 'exists:facilitators,id'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'quota' => ['required', 'integer', 'min:0'],
             'status' => ['nullable', 'string', 'in:draft,scheduled'],
+            'is_paid' => ['nullable', 'boolean'],
+            'price' => ['nullable', 'integer', 'min:0', 'max:100000000', 'required_if:is_paid,true'],
         ];
     }
 }

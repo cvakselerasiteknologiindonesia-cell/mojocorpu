@@ -3,12 +3,15 @@
 namespace Modules\LMS\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Services\LearningPathProgressService;
 use App\Support\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Modules\LMS\Http\Requests\StoreLearningMaterialRequest;
 use Modules\LMS\Http\Requests\UpdateLearningMaterialRequest;
+use Modules\LMS\Models\LearningMaterial;
+use Modules\LMS\Models\LearningMaterialView;
 use Modules\LMS\Services\LearningMaterialService;
 
 class LearningMaterialController extends Controller
@@ -49,6 +52,35 @@ class LearningMaterialController extends Controller
             return ApiResponse::success('Data retrieved', $paginated);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
+            return ApiResponse::error();
+        }
+    }
+
+    public function trackOpen(Request $request, string $uuid, LearningPathProgressService $progressService)
+    {
+        try {
+            $material = LearningMaterial::query()
+                ->where('uuid', $uuid)
+                ->firstOrFail();
+
+            LearningMaterialView::query()->updateOrCreate(
+                [
+                    'learning_material_id' => $material->id,
+                    'user_id' => $request->user()->id,
+                ],
+                ['viewed_at' => now()]
+            );
+
+            $progressService->completeReferencedSteps('material', $material->uuid, $request->user()->id);
+
+            return ApiResponse::success('Materi dibuka.', [
+                'uuid' => $material->uuid,
+                'title' => $material->title,
+                'url' => $material->external_url ?: $material->file_url,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
+
             return ApiResponse::error();
         }
     }

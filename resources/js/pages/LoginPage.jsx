@@ -1,21 +1,125 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Award, BookOpen, CheckCircle2, Eye, EyeOff, Lock, Mail, ShieldCheck, Sparkles, User } from 'lucide-react';
 import api from '../api.js';
-import demoRoleAccounts from '../data/demoAccounts.js';
+
+const DEMO_ACCOUNTS = [
+  {
+    role: 'Super Admin',
+    identifier: 'admin@mojokertokab.go.id',
+    password: 'password',
+  },
+  {
+    role: 'Admin OPD',
+    identifier: 'admin.opd@mojokertokab.go.id',
+    password: 'password',
+  },
+  {
+    role: 'ASN',
+    identifier: 'budi@mojokertokab.go.id',
+    password: 'password',
+  },
+  {
+    role: 'Fasilitator Internal',
+    identifier: 'siti.fasilitator@mojokertokab.go.id',
+    password: 'password',
+  },
+  {
+    role: 'Fasilitator Eksternal',
+    identifier: 'external.fasilitator@example.com',
+    password: 'password',
+  },
+];
 
 export default function LoginPage({ onLogin }) {
   const initialSsoUnavailable = useMemo(
     () => new URLSearchParams(window.location.search).get('sso_unavailable') === '1',
     [],
   );
-  const [selectedDemoRole, setSelectedDemoRole] = useState('super_admin');
   const [form, setForm] = useState({ identifier: 'admin@mojokertokab.go.id', password: 'password' });
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [ssoUnavailable, setSsoUnavailable] = useState(initialSsoUnavailable);
   const [error, setError] = useState(
     initialSsoUnavailable ? 'Server SSO Jakarta sedang tidak tersedia. Silakan masuk menggunakan NIP/email BKPSDM.' : '',
   );
+
+  useEffect(() => {
+    document.documentElement.setAttribute('dir', 'ltr');
+    document.documentElement.setAttribute('data-startbar', 'light');
+    document.documentElement.setAttribute('data-bs-theme', 'light');
+
+    const stylesheets = [
+      '/assets/css/bootstrap.min.css',
+      '/assets/css/icons.min.css',
+      '/assets/css/app.min.css',
+    ];
+
+    const links = stylesheets.map((href) => {
+      const existing = document.querySelector(`link[href="${href}"]`);
+      if (existing) return null;
+
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = href;
+      link.dataset.loginTemplate = 'true';
+      document.head.appendChild(link);
+
+      return link;
+    });
+
+    const brandButtonStyle = document.createElement('style');
+    brandButtonStyle.dataset.loginTemplate = 'true';
+    brandButtonStyle.textContent = `
+      .auth-header-box.bg-black {
+        background-color: #221816 !important;
+      }
+
+      .btn-primary {
+        --bs-btn-bg: #c42007;
+        --bs-btn-border-color: #c42007;
+        --bs-btn-hover-bg: #8b1200;
+        --bs-btn-hover-border-color: #8b1200;
+        --bs-btn-active-bg: #8b1200;
+        --bs-btn-active-border-color: #8b1200;
+        --bs-btn-disabled-bg: #c42007;
+        --bs-btn-disabled-border-color: #c42007;
+        --bs-btn-color: #ffffff;
+        --bs-btn-hover-color: #ffffff;
+        --bs-btn-active-color: #ffffff;
+        box-shadow: 0 8px 18px rgba(196, 32, 7, .22);
+      }
+
+      .btn-primary:focus-visible,
+      .btn-outline-primary:focus-visible,
+      .form-control:focus,
+      .form-select:focus {
+        border-color: #c42007;
+        box-shadow: 0 0 0 .2rem rgba(196, 32, 7, .22);
+      }
+
+      .btn-outline-primary {
+        --bs-btn-color: #c42007;
+        --bs-btn-border-color: #c42007;
+        --bs-btn-hover-bg: #c42007;
+        --bs-btn-hover-border-color: #c42007;
+        --bs-btn-hover-color: #ffffff;
+        --bs-btn-active-bg: #8b1200;
+        --bs-btn-active-border-color: #8b1200;
+        --bs-btn-active-color: #ffffff;
+      }
+
+      .text-primary {
+        color: #c42007 !important;
+      }
+    `;
+    document.head.appendChild(brandButtonStyle);
+
+    return () => {
+      links.forEach((link) => link?.remove());
+      brandButtonStyle.remove();
+      document.documentElement.removeAttribute('data-startbar');
+      document.documentElement.removeAttribute('data-bs-theme');
+    };
+  }, []);
 
   useEffect(() => {
     if (!initialSsoUnavailable) return undefined;
@@ -28,10 +132,13 @@ export default function LoginPage({ onLogin }) {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
-  const selectDemoRole = (account) => {
-    setSelectedDemoRole(account.role);
-    setForm({ identifier: account.identifier, password: 'password' });
+  const useDemoAccount = (account) => {
     setError('');
+    setSsoUnavailable(false);
+    setForm({
+      identifier: account.identifier,
+      password: account.password,
+    });
   };
 
   const submitCredential = async (event) => {
@@ -66,143 +173,114 @@ export default function LoginPage({ onLogin }) {
   };
 
   return (
-    <main className="login-page">
-      <section className="login-hero">
-        <div className="hero-grid-texture" />
-        <div className="login-hero-top">
-          <div className="brand-lockup">
-            <div className="brand-mark brand-mark-light">CU</div>
-            <div>
-              <strong>Corporate University</strong>
-              <span>BKPSDM Kab. Mojokerto</span>
+    <div className="container-xxl">
+      <div className="row vh-100 d-flex justify-content-center">
+        <div className="col-12 align-self-center">
+          <div className="card-body">
+            <div className="row">
+              <div className="col-lg-4 mx-auto">
+                <div className="card">
+                  <div className="card-body p-0 bg-black auth-header-box rounded-top">
+                    <div className="text-center p-3">
+                      <a href="/" className="logo logo-admin">
+                        <img src="/images/corpu-topbar-logo.png" height="50" alt="MAJA CORPU" className="auth-logo" />
+                      </a>
+                      <h4 className="mt-3 mb-1 fw-semibold text-white fs-18">Masuk ke MAJA CORPU</h4>
+                      <p className="text-muted fw-medium mb-0">Gunakan akun resmi untuk melanjutkan.</p>
+                    </div>
+                  </div>
+                  <div className="card-body pt-0">
+                    <form className="my-3" onSubmit={submitCredential}>
+                      <div className="form-group mb-2">
+                        <label className="form-label" htmlFor="username">NIP atau Email</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="username"
+                          name="identifier"
+                          value={form.identifier}
+                          onChange={update}
+                          placeholder="Masukkan NIP atau email"
+                          autoComplete="username"
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="userpassword">Password</label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          name="password"
+                          id="userpassword"
+                          value={form.password}
+                          onChange={update}
+                          placeholder="Masukkan password"
+                          autoComplete="current-password"
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group row mt-3">
+                        <div className="col-sm-6">
+                          <div className="form-check form-switch form-switch-success">
+                            <input className="form-check-input" type="checkbox" id="customSwitchSuccess" />
+                            <label className="form-check-label" htmlFor="customSwitchSuccess">Remember me</label>
+                          </div>
+                        </div>
+                        <div className="col-sm-6 text-end">
+                          <a href="/login" className="text-muted font-13"><i className="dripicons-lock" /> Lupa password?</a>
+                        </div>
+                      </div>
+
+                      {error && (
+                        <div className="alert alert-danger py-2 mt-3 mb-0 font-13" role="alert">
+                          {error}
+                        </div>
+                      )}
+
+                      <div className="form-group mb-0 row">
+                        <div className="col-12">
+                          <div className="d-grid mt-3">
+                            <button className="btn btn-primary" type="submit" disabled={loading}>
+                              {loading ? 'Memproses...' : 'Log In'} <i className="fas fa-sign-in-alt ms-1" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </form>
+
+                    <div className="form-group mb-3">
+                      <label className="form-label" htmlFor="demoAccount">Demo akun sesuai role</label>
+                      <select
+                        id="demoAccount"
+                        className="form-select form-select-sm"
+                        value={form.identifier}
+                        onChange={(event) => {
+                          const account = DEMO_ACCOUNTS.find((item) => item.identifier === event.target.value);
+                          if (account) useDemoAccount(account);
+                        }}
+                      >
+                        {DEMO_ACCOUNTS.map((account) => (
+                          <option key={account.identifier} value={account.identifier}>
+                            {account.role} - {account.identifier}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="d-grid">
+                      <button type="button" onClick={startSso} className="btn btn-outline-primary btn-sm">
+                        <i className="fas fa-user-shield me-1" /> Masuk dengan SSO ASN
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <span className="login-live-badge"><CheckCircle2 size={13} /> Online</span>
         </div>
-
-        <div className="hero-copy">
-          <p className="mono-kicker">ASN Learning Platform</p>
-          <h1>Belajar, berkembang, tersertifikasi.</h1>
-          <p>Satu pintu untuk pelatihan, materi, asesmen, sertifikat, dan rekam pengembangan kompetensi ASN.</p>
-        </div>
-
-        <div className="login-dashboard-preview" aria-hidden="true">
-          <div className="login-preview-head">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="login-preview-body">
-            <div className="login-preview-main">
-              <div>
-                <small>Learning Progress</small>
-                <strong>78%</strong>
-              </div>
-              <div className="login-preview-bars">
-                <span style={{ width: '82%' }} />
-                <span style={{ width: '64%' }} />
-                <span style={{ width: '48%' }} />
-              </div>
-            </div>
-            <div className="login-preview-side">
-              <span><BookOpen size={13} /> 124 Modul</span>
-              <span><Award size={13} /> 8.950 Sertifikat</span>
-              <span><Sparkles size={13} /> 47 OPD</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="hero-stats">
-          <div><strong>3.200+</strong><span>ASN Terdaftar</span></div>
-          <div><strong>124</strong><span>Modul Aktif</span></div>
-          <div><strong>8.950+</strong><span>Sertifikat</span></div>
-        </div>
-      </section>
-
-      <section className="login-panel" aria-label="Login">
-        <div className={`login-card ${ssoUnavailable ? 'login-card-attention' : ''}`}>
-          <div className="login-card-head">
-            <p className="mono-kicker text-muted">Secure Access</p>
-            <h2>Masuk ke Akun</h2>
-            <p className="login-subtitle">Gunakan SSO ASN atau akun internal untuk melanjutkan ke ruang belajar.</p>
-          </div>
-
-          <button className="sso-button" type="button" onClick={startSso}>
-            <span className="sso-icon"><ShieldCheck size={19} /></span>
-            <span>
-              <strong>Masuk dengan SSO ASN</strong>
-              <small>Autentikasi resmi dan aman</small>
-            </span>
-            <ArrowRight size={17} />
-          </button>
-
-          <div className="divider"><span>atau masuk manual</span></div>
-
-          <form className={`login-form ${ssoUnavailable ? 'login-form-attention' : ''}`} onSubmit={submitCredential}>
-            <div className="demo-role-panel" aria-label="Role login presets">
-              <span>Pilih Role</span>
-              <div className="demo-role-grid">
-                {demoRoleAccounts.map((account) => (
-                  <button
-                    key={account.role}
-                    className={`demo-role-button ${selectedDemoRole === account.role ? 'active' : ''}`}
-                    type="button"
-                    onClick={() => selectDemoRole(account)}
-                  >
-                    {account.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <label>
-              <span>NIP atau Email</span>
-              <div className="input-wrap">
-                {form.identifier.includes('@') ? <Mail size={16} /> : <User size={16} />}
-                <input name="identifier" value={form.identifier} onChange={update} placeholder="18 digit NIP atau email resmi" autoComplete="username" required />
-              </div>
-            </label>
-            <label>
-              <span>Kata Sandi</span>
-              <div className="input-wrap password-wrap">
-                <Lock size={16} />
-                <input
-                  name="password"
-                  value={form.password}
-                  onChange={update}
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Kata sandi"
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword((value) => !value)}
-                  aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </label>
-
-            {error && <div className="form-error-visible">{error}</div>}
-
-            <label className="remember-row">
-              <input type="checkbox" /> Ingat saya selama 30 hari
-            </label>
-
-            <button className="primary-button full" disabled={loading}>
-              {loading ? 'Masuk...' : 'Masuk dengan Email/NIP'} <ArrowRight size={16} />
-            </button>
-          </form>
-
-          <div className="support-note">
-            <ShieldCheck size={15} />
-            <span>Dilindungi autentikasi internal BKPSDM. Hubungi Admin BKPSDM ext. 203 jika mengalami kendala akses.</span>
-          </div>
-        </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

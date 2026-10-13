@@ -2,17 +2,26 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
+  Building2,
   Check,
   ChevronDown,
   Coins,
+  Copy,
+  CreditCard,
+  ExternalLink,
   Eye,
   EyeOff,
+  ImagePlus,
   Loader2,
   Palette,
   Plus,
+  Rocket,
   Save,
+  ShieldCheck,
   Trash2,
   Wifi,
+  X,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../api.js';
@@ -200,7 +209,7 @@ function WalletSettings() {
   if (isLoading) return <div className="resource-note">Memuat wallet settings…</div>;
   if (!cfg) return null;
 
-  const tierColors = ['#f59e0b','#3b82f6','#10b981','#8b5cf6','#ef4444','#ec4899'];
+  const tierColors = ['var(--gold)', 'var(--sky)', 'var(--emerald)', 'var(--grape)', 'var(--crimson)', 'var(--gold)'];
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 20, alignItems: 'start' }}>
@@ -210,8 +219,8 @@ function WalletSettings() {
 
         <section className="enterprise-card" style={{ padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Coins size={16} color="#2563eb" />
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'color-mix(in srgb, var(--grape) 12%, var(--bg))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Coins size={16} color="var(--grape)" />
             </div>
             <div>
               <strong style={{ fontSize: 14 }}>Sistem Wallet</strong>
@@ -294,7 +303,7 @@ function WalletSettings() {
                     placeholder="Label tier"
                     style={{ flex: 1, fontSize: 13, fontWeight: 600 }}
                   />
-                  <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4, display: 'flex' }} onClick={() => removeTier(i)}>
+                  <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--crimson)', padding: 4, display: 'flex' }} onClick={() => removeTier(i)}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -361,10 +370,626 @@ function WalletSettings() {
   );
 }
 
+// ── Payment Settings (Midtrans) ────────────────────────────────────────────────
+
+const MIDTRANS_IPS = ['103.208.23.0/24', '103.208.23.12', '103.208.23.13'];
+
+const MIDTRANS_LINKS = [
+  { label: 'Dashboard Midtrans',  href: 'https://dashboard.midtrans.com' },
+  { label: 'Sandbox Dashboard',   href: 'https://dashboard.sandbox.midtrans.com' },
+  { label: 'Dokumentasi API',     href: 'https://docs.midtrans.com' },
+  { label: 'Status Layanan',      href: 'https://status.midtrans.com' },
+];
+
+function PaymentSettings() {
+  const qc = useQueryClient();
+
+  const { data: raw, isLoading } = useQuery({
+    queryKey: ['settings-payment'],
+    queryFn: () => api.get('/settings/payment').then((r) => r.data.data),
+    staleTime: 60_000,
+  });
+
+  const [form, setForm]           = useState(null);
+  const [testStatus, setTestStatus] = useState('idle');
+  const [testMsg, setTestMsg]       = useState('');
+
+  const cfg = form ?? raw ?? null;
+
+  function set(key, value) {
+    setForm((prev) => ({ ...(prev ?? raw ?? {}), [key]: value }));
+    setTestStatus('idle');
+  }
+
+  const saveMut = useMutation({
+    mutationFn: (payload) => api.put('/settings/payment', payload),
+    onSuccess: () => {
+      toast.success('Pengaturan pembayaran berhasil disimpan.');
+      qc.invalidateQueries({ queryKey: ['settings-payment'] });
+      setForm(null);
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Gagal menyimpan.'),
+  });
+
+  const testMut = useMutation({
+    mutationFn: () => api.post('/settings/test-payment'),
+    onSuccess: (res) => {
+      setTestStatus('success');
+      setTestMsg(res.data.message || 'Terhubung.');
+      toast.success(res.data.message);
+    },
+    onError: (err) => {
+      setTestStatus('error');
+      setTestMsg(err.response?.data?.message || 'Koneksi gagal.');
+      toast.error(err.response?.data?.message || 'Koneksi gagal.');
+    },
+  });
+
+  function handleSave() {
+    if (!cfg) return;
+    saveMut.mutate({
+      midtrans_merchant_id:           cfg.midtrans_merchant_id           ?? '',
+      midtrans_client_key:            cfg.midtrans_client_key            ?? '',
+      midtrans_server_key:            cfg.midtrans_server_key            ?? '',
+      midtrans_mode:                  cfg.midtrans_mode                  ?? 'sandbox',
+      midtrans_webhook_url:           cfg.midtrans_webhook_url           ?? '',
+      midtrans_webhook_verify_amount: cfg.midtrans_webhook_verify_amount ?? true,
+      midtrans_ip_whitelist:          cfg.midtrans_ip_whitelist          ?? false,
+      midtrans_idempotency_guard:     cfg.midtrans_idempotency_guard     ?? true,
+    });
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    toast.success('Disalin ke clipboard.');
+  }
+
+  function resetWebhookUrl() {
+    set('midtrans_webhook_url', `${window.location.origin}/api/payment/webhook/midtrans`);
+  }
+
+  if (isLoading) return <div className="resource-note">Memuat pengaturan pembayaran…</div>;
+  if (!cfg) return null;
+
+  const webhookUrl = cfg.midtrans_webhook_url ?? `${window.location.origin}/api/payment/webhook/midtrans`;
+
+  const statusDot = { success: '#22c55e', error: '#ef4444', idle: 'var(--border)' };
+  const statusLabel = { success: 'Terhubung', error: 'Gagal', idle: 'Belum diuji' };
+
+  const SECURITY_FEATURES = [
+    {
+      key: 'midtrans_webhook_verify_signature',
+      label: 'Verifikasi Signature',
+      desc: 'SHA-512: order_id + status_code + gross_amount + server_key — selalu aktif, tidak dapat dimatikan',
+      icon: ShieldCheck,
+      badgeText: 'Wajib',
+      badgeColor: '#dcfce7',
+      badgeFg: '#166534',
+      noToggle: true,
+      alwaysOn: true,
+    },
+    {
+      key: 'midtrans_webhook_verify_amount',
+      label: 'Verifikasi Nominal',
+      desc: 'gross_amount dari webhook dibandingkan dengan nominal di database',
+      icon: Coins,
+      badgeText: cfg.midtrans_webhook_verify_amount ? 'Aktif' : 'Nonaktif',
+      badgeColor: cfg.midtrans_webhook_verify_amount ? '#dcfce7' : '#fee2e2',
+      badgeFg:    cfg.midtrans_webhook_verify_amount ? '#166534' : '#991b1b',
+    },
+    {
+      key: 'midtrans_ip_whitelist',
+      label: 'IP Whitelist',
+      desc: 'Tolak request dari IP selain 103.208.23.0/24 (konfigurasi di firewall)',
+      icon: ShieldCheck,
+      badgeText: 'Info',
+      badgeColor: '#eff6ff',
+      badgeFg: '#1d4ed8',
+    },
+    {
+      key: 'midtrans_idempotency_guard',
+      label: 'Idempotency Guard',
+      desc: 'Notifikasi duplikat diabaikan otomatis jika payment sudah paid',
+      icon: Check,
+      badgeText: cfg.midtrans_idempotency_guard ? 'Terpasang' : 'Nonaktif',
+      badgeColor: cfg.midtrans_idempotency_guard ? '#dcfce7' : '#f3f4f6',
+      badgeFg:    cfg.midtrans_idempotency_guard ? '#166534' : '#6b7280',
+      noToggle: true,
+    },
+  ];
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 280px', gap: 20, alignItems: 'start' }}>
+
+      {/* ── Left: main config ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Credentials */}
+        <section className="enterprise-card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Zap size={18} color="#fff" />
+            </div>
+            <div>
+              <strong style={{ fontSize: 14 }}>Kredensial Midtrans</strong>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)' }}>API keys dari dashboard.midtrans.com</p>
+            </div>
+            <span style={{ marginLeft: 'auto', fontSize: 11, padding: '2px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--fg-3)', fontFamily: 'Space Mono, monospace' }}>.env</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <Field label="MERCHANT ID">
+              <input
+                value={cfg.midtrans_merchant_id ?? ''}
+                onChange={(e) => set('midtrans_merchant_id', e.target.value)}
+                placeholder="G950789150"
+                style={{ fontFamily: 'Space Mono, monospace', fontSize: 13 }}
+              />
+            </Field>
+
+            <Field label="MODE">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {[
+                  { value: 'sandbox',    label: '🧪 Sandbox' },
+                  { value: 'production', label: '🚀 Production' },
+                ].map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => set('midtrans_mode', m.value)}
+                    style={{
+                      padding: '9px 0', border: `2px solid ${cfg.midtrans_mode === m.value ? 'var(--accent)' : 'var(--border)'}`,
+                      background: cfg.midtrans_mode === m.value ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--surface)',
+                      cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      color: cfg.midtrans_mode === m.value ? 'var(--accent)' : 'var(--fg)',
+                      borderRadius: 6, transition: 'all 0.15s',
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </div>
+
+          <Field label="CLIENT KEY">
+            <SecretInput
+              value={cfg.midtrans_client_key ?? ''}
+              onChange={(v) => set('midtrans_client_key', v)}
+              placeholder="SB-Mid-client-..."
+            />
+          </Field>
+
+          <Field label="SERVER KEY">
+            <SecretInput
+              value={cfg.midtrans_server_key ?? ''}
+              onChange={(v) => set('midtrans_server_key', v)}
+              placeholder="SB-Mid-server-..."
+            />
+          </Field>
+
+          {/* Warning */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6, padding: '10px 12px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8 }}>
+            <span style={{ fontSize: 16, lineHeight: 1, marginTop: 1 }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: 12, color: '#9a3412' }}>
+              API keys <strong>tidak ditampilkan ulang</strong> setelah disimpan. Biarkan kosong jika tidak ingin mengubah key yang tersimpan.
+            </p>
+          </div>
+        </section>
+
+        {/* Webhook Security */}
+        <section className="enterprise-card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'color-mix(in srgb, var(--accent) 10%, var(--bg))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShieldCheck size={16} color="var(--accent)" />
+            </div>
+            <div>
+              <strong style={{ fontSize: 14 }}>Keamanan Webhook</strong>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)' }}>Lapisan validasi pada setiap notifikasi Midtrans</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {SECURITY_FEATURES.map((f) => {
+              const Icon = f.icon;
+              return (
+                <div key={f.key} style={{
+                  padding: '14px 16px', border: '1px solid var(--border)', borderRadius: 10,
+                  background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 7, background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={14} color="var(--fg-2)" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <strong style={{ fontSize: 13 }}>{f.label}</strong>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', background: f.badgeColor, color: f.badgeFg, borderRadius: 4 }}>
+                          {f.badgeText}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-3)', lineHeight: 1.4 }}>{f.desc}</p>
+                    </div>
+                    {!f.noToggle && (
+                      <Toggle checked={!!cfg[f.key]} onChange={(v) => set(f.key, v)} />
+                    )}
+                    {f.noToggle && f.alwaysOn && (
+                      <ShieldCheck size={16} color="#166534" />
+                    )}
+                    {f.noToggle && !f.alwaysOn && cfg[f.key] && (
+                      <Check size={16} color="#22c55e" />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Save */}
+        <button
+          className="primary-button"
+          style={{ alignSelf: 'flex-start' }}
+          disabled={saveMut.isPending}
+          onClick={handleSave}
+        >
+          {saveMut.isPending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />}
+          {saveMut.isPending ? 'Menyimpan…' : 'Simpan Pengaturan'}
+        </button>
+      </div>
+
+      {/* ── Right sidebar ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+        {/* Connection status */}
+        <section className="enterprise-card" style={{ padding: 18 }}>
+          <p style={{ margin: '0 0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-3)' }}>Status Koneksi</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: statusDot[testStatus], display: 'inline-block', flexShrink: 0 }} />
+            <strong style={{ fontSize: 14 }}>{statusLabel[testStatus]}</strong>
+          </div>
+          {testMsg && (
+            <p style={{ margin: '0 0 10px', fontSize: 12, color: testStatus === 'error' ? '#991b1b' : '#166534' }}>{testMsg}</p>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+            <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Mode aktif:</span>
+            <span style={{
+              fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+              background: cfg.midtrans_mode === 'production' ? '#fef9c3' : '#eff6ff',
+              color: cfg.midtrans_mode === 'production' ? '#854d0e' : '#1d4ed8',
+            }}>
+              {cfg.midtrans_mode === 'production' ? 'Production' : 'Sandbox'}
+            </span>
+          </div>
+          <button
+            className="primary-button"
+            style={{ width: '100%', justifyContent: 'center' }}
+            disabled={testMut.isPending}
+            onClick={() => testMut.mutate()}
+          >
+            {testMut.isPending
+              ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <Wifi size={14} />}
+            {testMut.isPending ? 'Menguji…' : 'Test API Key'}
+          </button>
+        </section>
+
+        {/* Webhook URL */}
+        <section className="enterprise-card" style={{ padding: 18 }}>
+          <strong style={{ fontSize: 14, display: 'block', marginBottom: 4 }}>Webhook URL</strong>
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--fg-3)' }}>Daftarkan di Midtrans → Settings → Configuration</p>
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <input
+              value={webhookUrl}
+              onChange={(e) => set('midtrans_webhook_url', e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                fontFamily: 'Space Mono, monospace', fontSize: 11,
+                paddingRight: 36,
+              }}
+              placeholder="https://yourdomain.com/api/payment/webhook/midtrans"
+            />
+            <button
+              type="button"
+              title="Salin"
+              onClick={() => copyToClipboard(webhookUrl)}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', padding: 0, display: 'flex' }}
+            >
+              <Copy size={13} />
+            </button>
+          </div>
+          <button
+            type="button"
+            className="outline-button compact"
+            onClick={resetWebhookUrl}
+            style={{ fontSize: 11, color: 'var(--fg-3)' }}
+          >
+            Reset ke default
+          </button>
+        </section>
+
+        {/* Midtrans IPs */}
+        <section className="enterprise-card" style={{ padding: 18 }}>
+          <strong style={{ fontSize: 14, display: 'block', marginBottom: 4 }}>IP Midtrans</strong>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--fg-3)' }}>Untuk whitelist firewall/server</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {MIDTRANS_IPS.map((ip) => (
+              <div key={ip} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <code style={{
+                  flex: 1, fontSize: 12, padding: '7px 10px', background: 'var(--surface)',
+                  border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'Space Mono, monospace',
+                }}>
+                  {ip}
+                </code>
+                <button
+                  type="button"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', padding: 4, display: 'flex', flexShrink: 0 }}
+                  onClick={() => copyToClipboard(ip)}
+                >
+                  <Copy size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Links */}
+        <section className="enterprise-card" style={{ padding: 18 }}>
+          <strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>Link Midtrans</strong>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {MIDTRANS_LINKS.map(({ label, href }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 0', fontSize: 13, color: 'var(--fg)',
+                  textDecoration: 'none', borderBottom: '1px solid var(--border)',
+                }}
+              >
+                {label}
+                <ExternalLink size={13} color="var(--fg-3)" />
+              </a>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// ── App Identity Settings ──────────────────────────────────────────────────────
+
+function AppIdentitySettings() {
+  const qc = useQueryClient();
+
+  const { data: raw, isLoading } = useQuery({
+    queryKey: ['settings-app'],
+    queryFn: () => api.get('/settings/app').then((r) => r.data.data),
+    staleTime: 60_000,
+  });
+
+  const [form, setForm]         = useState(null);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
+
+  const cfg = form ?? raw ?? null;
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...(prev ?? raw ?? {}), [key]: value }));
+  }
+
+  function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  }
+
+  function clearLogo() {
+    setLogoFile(null);
+    setLogoPreview(null);
+  }
+
+  const saveMut = useMutation({
+    mutationFn: (fd) => api.post('/settings/app', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    onSuccess: (res) => {
+      toast.success('Identitas aplikasi berhasil disimpan.');
+      qc.invalidateQueries({ queryKey: ['settings-app'] });
+      setLogoFile(null);
+      setLogoPreview(null);
+      setForm(null);
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Gagal menyimpan.'),
+  });
+
+  function handleSave() {
+    if (!cfg) return;
+    const fd = new FormData();
+    fd.append('app_name',    cfg.app_name    ?? '');
+    fd.append('app_tagline', cfg.app_tagline ?? '');
+    if (logoFile) fd.append('app_logo', logoFile);
+    saveMut.mutate(fd);
+  }
+
+  if (isLoading) return <div className="resource-note">Memuat identitas aplikasi…</div>;
+  if (!cfg) return null;
+
+  const currentLogo = logoPreview ?? cfg.app_logo ?? null;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,340px)', gap: 20, alignItems: 'start' }}>
+
+      {/* Left — fields */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        <section className="enterprise-card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'color-mix(in srgb, var(--accent) 12%, var(--bg))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Building2 size={16} color="var(--accent)" />
+            </div>
+            <div>
+              <strong style={{ fontSize: 14 }}>Identitas Aplikasi</strong>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)' }}>Nama, tagline, dan logo yang tampil di seluruh platform</p>
+            </div>
+          </div>
+
+          <Field label="Nama Aplikasi" hint="Nama singkat yang tampil di topbar, halaman login, dan footer.">
+            <input
+              value={cfg.app_name ?? ''}
+              onChange={(e) => setField('app_name', e.target.value)}
+              placeholder="Contoh: MojoCorpu"
+              style={{ fontSize: 14, fontWeight: 600 }}
+            />
+          </Field>
+
+          <Field label="Tagline" hint="Deskripsi singkat di bawah nama aplikasi (opsional).">
+            <input
+              value={cfg.app_tagline ?? ''}
+              onChange={(e) => setField('app_tagline', e.target.value)}
+              placeholder="Contoh: Platform Pembelajaran ASN Kabupaten Mojokerto"
+            />
+          </Field>
+        </section>
+
+        {/* Logo upload */}
+        <section className="enterprise-card" style={{ padding: 20 }}>
+          <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 14 }}>Logo Aplikasi</p>
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--fg-3)' }}>Format: PNG, JPG, SVG, WebP. Maksimum 2 MB.</p>
+
+          {/* Dimension recommendation notice */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
+            background: 'color-mix(in srgb, var(--gold) 10%, var(--bg))',
+            border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)',
+            borderRadius: 8, marginBottom: 16,
+          }}>
+            <span style={{ fontSize: 16, lineHeight: 1, marginTop: 1 }}>💡</span>
+            <div style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.5 }}>
+              <strong>Rekomendasi ukuran logo:</strong> <span style={{ fontFamily: 'Space Mono, monospace', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', padding: '1px 6px', borderRadius: 4 }}>133 × 50 px</span>
+              <br />
+              Rasio lebar:tinggi <strong>±2.7:1</strong> (landscape). Logo berbentuk kotak atau portrait akan dipotong/di-letterbox di topbar.
+              Gunakan latar transparan (PNG) agar tampil optimal di semua tema.
+            </div>
+          </div>
+
+          {currentLogo ? (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
+              <div style={{
+                width: 133, height: 50, borderRadius: 8, border: '2px solid var(--border)',
+                background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', flexShrink: 0,
+              }}>
+                <img
+                  src={currentLogo}
+                  alt="Logo preview"
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', fontFamily: 'Space Mono, monospace' }}>133 × 50 px (referensi)</span>
+                {logoFile && (
+                  <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{logoFile.name} · {(logoFile.size / 1024).toFixed(0)} KB</span>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                  <label style={{ cursor: 'pointer' }}>
+                    <span className="outline-button compact" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <ImagePlus size={13} /> Ganti Logo
+                    </span>
+                    <input type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp" onChange={handleLogoChange} style={{ display: 'none' }} />
+                  </label>
+                  {logoFile && (
+                    <button type="button" className="outline-button compact" onClick={clearLogo} style={{ color: 'var(--crimson)' }}>
+                      <X size={13} /> Batal
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <label style={{ cursor: 'pointer', display: 'block' }}>
+              <div style={{
+                border: '2px dashed var(--border)', borderRadius: 10, padding: '28px 20px',
+                textAlign: 'center', background: 'var(--surface)',
+                transition: 'border-color 0.15s',
+              }}>
+                <ImagePlus size={28} style={{ color: 'var(--fg-3)', marginBottom: 10 }} />
+                <p style={{ margin: '0 0 4px', fontWeight: 600, fontSize: 13 }}>Klik untuk upload logo</p>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)' }}>PNG, JPG, SVG, WebP — maks. 2 MB · rekomendasi 133×50px</p>
+              </div>
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp" onChange={handleLogoChange} style={{ display: 'none' }} />
+            </label>
+          )}
+        </section>
+
+        <button
+          className="primary-button"
+          disabled={saveMut.isPending}
+          onClick={handleSave}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          {saveMut.isPending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />}
+          {saveMut.isPending ? 'Menyimpan…' : 'Simpan Identitas Aplikasi'}
+        </button>
+      </div>
+
+      {/* Right — live preview */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <section className="enterprise-card" style={{ padding: 20 }}>
+          <p style={{ margin: '0 0 14px', fontWeight: 700, fontSize: 13 }}>Preview</p>
+
+          {/* Topbar preview */}
+          <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 12 }}>
+            <div style={{ background: 'var(--accent)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              {currentLogo
+                ? <img src={currentLogo} alt="" style={{ height: 28, width: 28, objectFit: 'contain', borderRadius: 4 }} />
+                : <div style={{ width: 28, height: 28, borderRadius: 4, background: 'rgba(255,255,255,0.25)' }} />}
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>
+                {cfg.app_name || 'MojoCorpu'}
+              </span>
+            </div>
+            <div style={{ background: 'var(--surface)', padding: '8px 14px' }}>
+              <p style={{ margin: 0, fontSize: 11, color: 'var(--fg-3)' }}>Topbar preview</p>
+            </div>
+          </div>
+
+          {/* Login card preview */}
+          <div style={{ borderRadius: 8, border: '1px solid var(--border)', padding: 16, background: 'var(--bg)', textAlign: 'center' }}>
+            {currentLogo
+              ? <img src={currentLogo} alt="" style={{ height: 48, objectFit: 'contain', marginBottom: 10 }} />
+              : <div style={{ width: 48, height: 48, borderRadius: 10, background: 'color-mix(in srgb, var(--accent) 15%, var(--bg))', margin: '0 auto 10px' }} />}
+            <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: 15 }}>{cfg.app_name || 'MojoCorpu'}</p>
+            {(cfg.app_tagline || '') && (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)' }}>{cfg.app_tagline}</p>
+            )}
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--fg-3)' }}>Login page preview</p>
+          </div>
+        </section>
+
+        <section className="enterprise-card" style={{ padding: 16 }}>
+          <p style={{ margin: '0 0 10px', fontWeight: 700, fontSize: 13 }}>Data Tersimpan</p>
+          {[
+            { label: 'Nama', value: raw?.app_name || '—' },
+            { label: 'Tagline', value: raw?.app_tagline || '—' },
+            { label: 'Logo', value: raw?.app_logo ? 'Terpasang' : 'Belum ada' },
+          ].map(({ label, value }) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+              <span style={{ color: 'var(--fg-3)' }}>{label}</span>
+              <span style={{ fontWeight: 600 }}>{value}</span>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AdminSettings() {
-  const [activeTab, setActiveTab] = useState('ai');
+  const [activeTab, setActiveTab] = useState('app');
   const qc = useQueryClient();
 
   const { data: raw, isLoading } = useQuery({
@@ -472,9 +1097,11 @@ export default function AdminSettings() {
       {/* Tab switcher */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid var(--border)', marginBottom: 4 }}>
         {[
-          { key: 'ai',     label: 'AI Settings', icon: Bot },
-          { key: 'wallet', label: 'Wallet',       icon: Coins },
-          { key: 'theme',  label: 'Tampilan',     icon: Palette },
+          { key: 'app',     label: 'Aplikasi',   icon: Building2 },
+          { key: 'payment', label: 'Pembayaran', icon: CreditCard },
+          { key: 'ai',      label: 'AI',         icon: Bot },
+          { key: 'wallet',  label: 'Wallet',     icon: Coins },
+          { key: 'theme',   label: 'Tampilan',   icon: Palette },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -495,7 +1122,9 @@ export default function AdminSettings() {
         ))}
       </div>
 
-      {activeTab === 'wallet' && <WalletSettings />}
+      {activeTab === 'app'     && <AppIdentitySettings />}
+      {activeTab === 'payment' && <PaymentSettings />}
+      {activeTab === 'wallet'  && <WalletSettings />}
       {activeTab === 'theme'  && <ThemeSettings />}
 
       {activeTab === 'ai' && isLoading && <div className="resource-note">Memuat settings…</div>}

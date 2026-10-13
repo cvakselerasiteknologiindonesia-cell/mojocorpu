@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, RefreshCw, Search, Users } from 'lucide-react';
+import { AlertTriangle, Building2, RefreshCw, Search, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../api.js';
 
@@ -11,36 +11,57 @@ function formatDate(d) {
 
 // ── Pagination ─────────────────────────────────────────────────────────────────
 
-function Pagination({ page, lastPage, total, perPage, onChange }) {
+const PAGE_SIZE_OPTIONS = [12, 24, 48];
+
+function Pagination({ page, lastPage, total, perPage, onChange, onPerPageChange }) {
   if (lastPage <= 1) return null;
 
   const from = (page - 1) * perPage + 1;
   const to   = Math.min(page * perPage, total);
 
-  const pages = [];
-  const delta = 2;
-  const left  = Math.max(1, page - delta);
-  const right = Math.min(lastPage, page + delta);
-
-  if (left > 1)     { pages.push(1); if (left > 2) pages.push('…'); }
-  for (let i = left; i <= right; i++) pages.push(i);
-  if (right < lastPage) { if (right < lastPage - 1) pages.push('…'); pages.push(lastPage); }
-
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderTop: '1px solid var(--border)', flexWrap: 'wrap', gap: 8 }}>
       <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Menampilkan {from}–{to} dari {total} OPD</span>
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button className="outline-button compact" disabled={page <= 1} onClick={() => onChange(page - 1)}>←</button>
-        {pages.map((p, i) =>
-          p === '…'
-            ? <span key={`ellipsis-${i}`} style={{ display: 'flex', alignItems: 'center', padding: '0 6px', fontSize: 13, color: 'var(--fg-3)' }}>…</span>
-            : <button key={p} className="outline-button compact"
-                style={p === page ? { background: 'var(--accent)', color: '#fff', border: '1px solid var(--accent)' } : {}}
-                onClick={() => onChange(p)}>{p}</button>
-        )}
-        <button className="outline-button compact" disabled={page >= lastPage} onClick={() => onChange(page + 1)}>→</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <select
+          value={perPage}
+          onChange={(event) => onPerPageChange(Number(event.target.value))}
+          style={{ border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', padding: '7px 9px', fontSize: 12 }}
+        >
+          {PAGE_SIZE_OPTIONS.map((size) => (
+            <option key={size} value={size}>{size} / halaman</option>
+          ))}
+        </select>
+        <button className="outline-button compact" disabled={page <= 1} onClick={() => onChange(page - 1)}>Sebelumnya</button>
+        <span style={{ fontSize: 12, color: 'var(--fg-2)', minWidth: 82, textAlign: 'center' }}>Hal. {page} / {lastPage}</span>
+        <button className="outline-button compact" disabled={page >= lastPage} onClick={() => onChange(page + 1)}>Berikutnya</button>
       </div>
     </div>
+  );
+}
+
+function DataQualityBadge({ children, tone = 'warning' }) {
+  const colors = tone === 'danger'
+    ? { bg: 'color-mix(in srgb, var(--crimson) 8%, var(--bg))', color: 'var(--crimson)', border: 'color-mix(in srgb, var(--crimson) 22%, transparent)' }
+    : { bg: '#fffbeb', color: '#92400e', border: '#fde68a' };
+
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 5,
+      marginRight: 5,
+      padding: '2px 7px',
+      border: `1px solid ${colors.border}`,
+      background: colors.bg,
+      color: colors.color,
+      fontSize: 10,
+      fontWeight: 700,
+      whiteSpace: 'nowrap',
+    }}>
+      <AlertTriangle size={10} /> {children}
+    </span>
   );
 }
 
@@ -50,6 +71,7 @@ export default function AdminOpdOpd() {
   const qc = useQueryClient();
   const [search, setSearch]   = useState('');
   const [page, setPage]       = useState(1);
+  const [perPage, setPerPage] = useState(12);
   const debounceRef           = useRef(null);
 
   // Live search — debounce 350 ms, reset page on change
@@ -64,8 +86,6 @@ export default function AdminOpdOpd() {
   const debouncedSearch = useDebounce(search, 350);
   useEffect(() => { setPage(1); }, [debouncedSearch]);
 
-  const PER_PAGE = 12;
-
   const { data: stats } = useQuery({
     queryKey: ['opds-stats'],
     queryFn: () => api.get('/opds/stats').then((r) => r.data.data),
@@ -73,9 +93,9 @@ export default function AdminOpdOpd() {
   });
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['opds-admin', debouncedSearch, page],
+    queryKey: ['opds-admin', debouncedSearch, page, perPage],
     queryFn: () => {
-      const params = new URLSearchParams({ per_page: PER_PAGE, page });
+      const params = new URLSearchParams({ per_page: perPage, page });
       if (debouncedSearch) params.set('search', debouncedSearch);
       return api.get(`/opds?${params}`).then((r) => r.data.data);
     },
@@ -94,7 +114,7 @@ export default function AdminOpdOpd() {
       qc.invalidateQueries({ queryKey: ['opds-admin'] });
       qc.invalidateQueries({ queryKey: ['opds-stats'] });
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Gagal sinkronisasi dengan SSO.'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Gagal sinkronisasi dengan SIMPEG.'),
   });
 
   return (
@@ -103,16 +123,24 @@ export default function AdminOpdOpd() {
       <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <p className="mono-kicker text-muted">Administrasi</p>
-          <h1>OPD</h1>
+          <h1>Peta OPD</h1>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-3)' }}>
+            Pantau cakupan OPD, unit kerja, dan jumlah ASN yang tersinkron dari SIMPEG.
+          </p>
         </div>
-        <button
-          className="primary-button compact"
-          disabled={syncMut.isPending}
-          onClick={() => syncMut.mutate()}
-        >
-          <RefreshCw size={14} style={syncMut.isPending ? { animation: 'spin 1s linear infinite' } : {}} />
-          {syncMut.isPending ? 'Menyinkronkan…' : 'Sinkronisasi dari SSO'}
-        </button>
+        <div style={{ display: 'grid', justifyItems: 'end', gap: 6 }}>
+          <button
+            className="primary-button compact"
+            disabled={syncMut.isPending}
+            onClick={() => syncMut.mutate()}
+          >
+            <RefreshCw size={14} style={syncMut.isPending ? { animation: 'spin 1s linear infinite' } : {}} />
+            {syncMut.isPending ? 'Menyinkronkan...' : 'Sinkronisasi dari SIMPEG'}
+          </button>
+          <span style={{ maxWidth: 280, textAlign: 'right', fontSize: 11, color: 'var(--fg-3)' }}>
+            Memperbarui daftar OPD, kode, kontak, dan status aktif.
+          </span>
+        </div>
       </div>
 
       {/* Stats strip */}
@@ -126,12 +154,20 @@ export default function AdminOpdOpd() {
           <span className="cp-stat-lbl">Aktif</span>
         </div>
         <div className="cp-stat">
-          <span className="cp-stat-val">{stats?.total_units ?? '—'}</span>
-          <span className="cp-stat-lbl">Unit Kerja</span>
+          <span className="cp-stat-val">{stats?.inactive ?? '—'}</span>
+          <span className="cp-stat-lbl">Nonaktif</span>
         </div>
         <div className="cp-stat">
           <span className="cp-stat-val">{stats?.total_asn ?? '—'}</span>
           <span className="cp-stat-lbl">Total ASN</span>
+        </div>
+        <div className="cp-stat cp-stat--pending">
+          <span className="cp-stat-val">{stats?.without_asn ?? '—'}</span>
+          <span className="cp-stat-lbl">Tanpa ASN</span>
+        </div>
+        <div className="cp-stat cp-stat--pending">
+          <span className="cp-stat-val">{stats?.without_contact ?? '—'}</span>
+          <span className="cp-stat-lbl">Kontak Kurang</span>
         </div>
       </div>
 
@@ -141,7 +177,7 @@ export default function AdminOpdOpd() {
         <input
           value={search}
           onChange={handleSearchChange}
-          placeholder="Cari nama atau kode OPD…"
+          placeholder="Cari nama OPD atau kode..."
           style={{ width: '100%', paddingLeft: 32, paddingRight: search ? 32 : 12, paddingTop: 9, paddingBottom: 9, border: '1px solid var(--border)', font: 'inherit', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
         />
         {search && (
@@ -169,9 +205,14 @@ export default function AdminOpdOpd() {
         {!isLoading && opds.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 20px' }}>
             <Building2 size={32} style={{ color: 'var(--fg-3)', margin: '0 auto 12px' }} />
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--fg-3)' }}>
-              {search ? `Tidak ada OPD yang cocok dengan "${search}".` : 'Belum ada data OPD. Klik "Sinkronisasi dari SSO" untuk mengimpor.'}
+            <p style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--fg-3)' }}>
+              {search ? `Tidak ada OPD yang cocok dengan "${search}".` : 'Belum ada data OPD. Klik "Sinkronisasi dari SIMPEG" untuk mengimpor.'}
             </p>
+            {!search && (
+              <button className="primary-button compact" disabled={syncMut.isPending} onClick={() => syncMut.mutate()}>
+                <RefreshCw size={14} /> Sinkronisasi dari SIMPEG
+              </button>
+            )}
           </div>
         )}
 
@@ -180,7 +221,7 @@ export default function AdminOpdOpd() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-                  {['Nama OPD', 'Kode', 'Kontak', 'Unit Kerja', 'ASN', 'Status', 'Sejak'].map((h) => (
+                  {['Nama OPD', 'Kontak', 'Unit Kerja', 'ASN', 'Status', 'Terdaftar'].map((h) => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -199,13 +240,13 @@ export default function AdminOpdOpd() {
                         <div style={{ minWidth: 0 }}>
                           <strong style={{ display: 'block', fontSize: 13 }}>{opd.name}</strong>
                           {opd.address && <span style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>{opd.address}</span>}
+                          <span style={{ display: 'block', marginTop: 4, fontFamily: 'Space Mono, monospace', fontSize: 11, color: 'var(--fg-3)' }}>
+                            {opd.code || 'tanpa kode'}
+                          </span>
+                          {opd.asn_count === 0 && <DataQualityBadge>Tanpa ASN</DataQualityBadge>}
+                          {(!opd.email || !opd.phone) && <DataQualityBadge>Kontak belum lengkap</DataQualityBadge>}
                         </div>
                       </div>
-                    </td>
-
-                    {/* Kode */}
-                    <td style={{ padding: '12px 14px', fontFamily: 'Space Mono, monospace', fontSize: 12, color: 'var(--fg-2)', whiteSpace: 'nowrap' }}>
-                      {opd.code || '—'}
                     </td>
 
                     {/* Kontak */}
@@ -258,8 +299,12 @@ export default function AdminOpdOpd() {
           page={page}
           lastPage={lastPage}
           total={total}
-          perPage={PER_PAGE}
+          perPage={perPage}
           onChange={setPage}
+          onPerPageChange={(value) => {
+            setPerPage(value);
+            setPage(1);
+          }}
         />
       </section>
     </div>

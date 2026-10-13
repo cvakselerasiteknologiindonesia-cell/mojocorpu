@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import api from '../api.js';
 import { getRoleNames, hasAnyPermission } from '../utils/permissions.js';
 import { CertPreviewCanvas as SharedCertPreview, CertPrintArea } from '../components/CertPreview.jsx';
+import { safe } from '../utils/sanitize.js';
 
 // ── Canvas dimensions ──────────────────────────────────────────────────────────
 
@@ -63,16 +64,67 @@ const SAMPLE = {
   issued_date: '14 Mei 2026',
   certificate_number: 'CERT-CORPU-2026-001',
   verification_url: 'https://app.corpu.test/certificates/verify/CERT-CORPU-2026-001',
+  official_name: 'Nama Pejabat',
+  official_title: 'Kepala BKPSDM',
+  predicate: 'Sangat Baik',
+  final_score: '95',
   sessions: [
     { order: 1, title: 'Kepemimpinan dan Manajemen Organisasi', duration_minutes: 120, status: 'completed' },
     { order: 2, title: 'Komunikasi Efektif dan Presentasi', duration_minutes: 90, status: 'completed' },
     { order: 3, title: 'Teknologi Digital untuk ASN', duration_minutes: 60, status: 'completed' },
     { order: 4, title: 'Manajemen Risiko dan Pengambilan Keputusan', duration_minutes: 90, status: 'completed' },
   ],
+  materials: [
+    { order: 1, title: 'Modul Kepemimpinan Digital', type: 'document', description: 'Modul utama pembelajaran', duration_minutes: 90, learning_hours: 2 },
+    { order: 2, title: 'Video Transformasi Digital ASN', type: 'video', description: 'Video pembelajaran mandiri', duration_minutes: 45, learning_hours: 1 },
+    { order: 3, title: 'Studi Kasus Pelayanan Publik', type: 'presentation', description: 'Bahan diskusi kelompok', duration_minutes: 90, learning_hours: 2 },
+  ],
 };
+
+const TABLE_COLUMN_OPTIONS = {
+  materials: [
+    { key: 'order', header: 'No.', width: 44 },
+    { key: 'title', header: 'Learning Materials', width: null },
+    { key: 'type', header: 'Jenis', width: 100 },
+    { key: 'learning_hours', header: 'JP', width: 60 },
+    { key: 'description', header: 'Deskripsi', width: 220 },
+  ],
+  sessions: [
+    { key: 'order', header: 'No.', width: 44 },
+    { key: 'title', header: 'Mata Pelajaran', width: null },
+    { key: 'duration_minutes', header: 'Durasi (mnt)', width: 90 },
+    { key: 'status', header: 'Status', width: 80 },
+  ],
+};
+
+const CERTIFICATE_DRAFT_VERSION = 1;
+
+function certificateDraftSnapshot({
+  editing, tplName, paperSize, orientation, margin, bgColor,
+  signatureName, signatureTitle, elements, backElements, activePage,
+}) {
+  return {
+    version: CERTIFICATE_DRAFT_VERSION,
+    templateId: editing?.id || null,
+    tplName,
+    paperSize,
+    orientation,
+    margin,
+    bgColor,
+    signatureName,
+    signatureTitle,
+    elements,
+    backElements,
+    activePage,
+  };
+}
 
 function tok(s = '', values = SAMPLE) {
   return Object.entries({ ...SAMPLE, ...values }).reduce((t, [k, v]) => t.replaceAll(`{{${k}}}`, v ?? ''), s);
+}
+
+function totalLearningHours(materials = []) {
+  return materials.reduce((total, material) => total + (Number(material.learning_hours) || (material.duration_minutes ? Math.ceil(Number(material.duration_minutes) / 45) : 0)), 0);
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -108,7 +160,7 @@ function defaultElements(orientation, paperSize = 'a4') {
       fontSize: 13, fontFamily: 'Brawler', fontWeight: 'normal',
       fontStyle: 'normal', textDecoration: 'none', color: '#555', textAlign: 'right', lineHeight: 1.2 },
     { id: uid(), type: 'text', label: 'signature',
-      content: 'Dr. Nama Pejabat, M.Si.\nKepala BKPSDM',
+      content: '{{official_name}}\n{{official_title}}',
       x: w - 270, y: Math.round(h * 0.87), w: 210, h: 48,
       fontSize: 13, fontFamily: 'Brawler', fontWeight: 'bold',
       fontStyle: 'normal', textDecoration: 'none', color: '#1a1a1a', textAlign: 'center', lineHeight: 1.4 },
@@ -136,7 +188,7 @@ function defaultBackElements(orientation, paperSize = 'a4') {
       fontStyle: 'normal', textDecoration: 'none', color: '#555', textAlign: 'center', lineHeight: 1.3,
     },
     {
-      id: uid(), type: 'table', label: 'sessions_table',
+      id: uid(), type: 'table', label: 'materials_table', dataSource: 'materials',
       x: pad, y: 122, w: w - pad * 2, h: h - 178,
       fontSize: 11, fontFamily: 'Inter',
       headerColor: '#ffffff', headerBg: '#1a1a1a',
@@ -144,10 +196,18 @@ function defaultBackElements(orientation, paperSize = 'a4') {
       borderColor: '#d0d0d0',
       columns: [
         { key: 'order', header: 'No.', width: 44 },
-        { key: 'title', header: 'Mata Pelajaran', width: null },
-        { key: 'duration_minutes', header: 'Durasi (mnt)', width: 90 },
-        { key: 'status', header: 'Status', width: 80 },
+        { key: 'title', header: 'Learning Materials', width: null },
+        { key: 'type', header: 'Jenis', width: 100 },
+        { key: 'learning_hours', header: 'JP', width: 60 },
+        { key: 'description', header: 'Deskripsi', width: 220 },
       ],
+    },
+    {
+      id: uid(), type: 'text', label: 'back-total-jp',
+      content: 'Total Jam Pelajaran: {{total_learning_hours}} JP',
+      x: pad, y: h - 62, w: w - pad * 2, h: 24,
+      fontSize: 12, fontFamily: 'Inter', fontWeight: 'bold',
+      fontStyle: 'normal', textDecoration: 'none', color: '#1a1a1a', textAlign: 'right', lineHeight: 1.2,
     },
     {
       id: uid(), type: 'text', label: 'back-cert-number',
@@ -249,7 +309,9 @@ function CanvasEl({ el, selected, editingId, onSelect, onStartEdit, onContentCha
   }
 
   if (el.type === 'table') {
-    const sessions = tokenValues.sessions || SAMPLE.sessions;
+    const rows = el.dataSource === 'materials'
+      ? (tokenValues.materials || SAMPLE.materials)
+      : (tokenValues.sessions || SAMPLE.sessions);
     const cols = el.columns || [
       { key: 'order', header: 'No.', width: 44 },
       { key: 'title', header: 'Mata Pelajaran', width: null },
@@ -295,7 +357,7 @@ function CanvasEl({ el, selected, editingId, onSelect, onStartEdit, onContentCha
             </tr>
           </thead>
           <tbody>
-            {sessions.map((row, idx) => (
+            {rows.map((row, idx) => (
               <tr key={idx}>
                 {cols.map((col) => (
                   <td key={col.key} style={{
@@ -353,7 +415,7 @@ function CanvasEl({ el, selected, editingId, onSelect, onStartEdit, onContentCha
             suppressContentEditableWarning
             style={textStyle}
             onBlur={(e) => onContentChange(e.currentTarget.innerText)}
-            dangerouslySetInnerHTML={{ __html: tok(el.content, tokenValues).replace(/\n/g, '<br>') }}
+            dangerouslySetInnerHTML={{ __html: safe(tok(el.content, tokenValues).replace(/\n/g, '<br>')) }}
           />
         : <div style={textStyle}>{tok(el.content, tokenValues)}</div>
       }
@@ -376,7 +438,7 @@ async function uploadImage(file, onSuccess, onError) {
 
 // ── Canvas editor ──────────────────────────────────────────────────────────────
 
-function CanvasEditor({ paperSize, orientation, margin, bgColor, elements, selected, editingId, setSelected, setEditingId, setElements }) {
+function CanvasEditor({ paperSize, orientation, margin, bgColor, elements, selected, editingId, setSelected, setEditingId, setElements, tokenValues = SAMPLE }) {
   const canvasRef  = useRef(null);
   const dragRef    = useRef(null);     // { mode:'move'|'resize', id, dir?, startMX, startMY, startEl }
   const { w, h }   = canvasDims(paperSize, orientation);
@@ -495,6 +557,7 @@ function CanvasEditor({ paperSize, orientation, margin, bgColor, elements, selec
           onSelect={() => setSelected(el.id)}
           onStartEdit={() => setEditingId(el.id)}
           onContentChange={(content) => updateEl(el.id, { content })}
+          tokenValues={tokenValues}
         />
       ))}
 
@@ -559,6 +622,8 @@ const PALETTE_ITEMS = [
       { label: 'Nama Pelatihan', icon: '📚', config: { type: 'text', label: 'event', content: '{{event_title}}', fontSize: 16, fontFamily: 'Brawler', fontWeight: 'bold', fontStyle: 'normal', textDecoration: 'underline', color: '#1a1a1a', textAlign: 'center', lineHeight: 1.4, w: 500, h: 40 } },
       { label: 'Tanggal', icon: '📅', config: { type: 'text', label: 'date', content: '{{issued_date}}', fontSize: 13, fontFamily: 'Brawler', fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', color: '#555', textAlign: 'right', lineHeight: 1.2, w: 200, h: 28 } },
       { label: 'No. Sertifikat', icon: '#', config: { type: 'text', label: 'certno', content: '{{certificate_number}}', fontSize: 12, fontFamily: 'Inter', fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', color: '#888', textAlign: 'right', lineHeight: 1.2, w: 240, h: 24 } },
+      { label: 'Predikat', icon: '⭐', config: { type: 'text', label: 'predicate', content: '{{predicate}}', fontSize: 18, fontFamily: 'Brawler', fontWeight: 'bold', fontStyle: 'normal', textDecoration: 'none', color: '#1a56db', textAlign: 'center', lineHeight: 1.2, w: 240, h: 32 } },
+      { label: 'Nilai Akhir', icon: '💯', config: { type: 'text', label: 'final_score', content: '{{final_score}}', fontSize: 14, fontFamily: 'Inter', fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', color: '#333', textAlign: 'center', lineHeight: 1.2, w: 120, h: 26 } },
       { label: 'QR Verifikasi', icon: '▦', config: { type: 'qr', label: 'verification_qr', content: '{{verification_url}}', color: '#111827', backgroundColor: '#ffffff', padding: 6, w: 86, h: 86 } },
     ] },
   { group: 'Gambar',
@@ -568,7 +633,7 @@ const PALETTE_ITEMS = [
     ] },
   { group: 'Tabel',
     items: [
-      { label: 'Tabel Sesi', icon: '📋', config: { type: 'table', label: 'sessions_table', fontSize: 11, fontFamily: 'Inter', headerColor: '#ffffff', headerBg: '#1a1a1a', rowColor: '#1a1a1a', rowBg: '#ffffff', altRowBg: '#f6f6f8', borderColor: '#d0d0d0', columns: [{ key: 'order', header: 'No.', width: 44 }, { key: 'title', header: 'Mata Pelajaran', width: null }, { key: 'duration_minutes', header: 'Durasi (mnt)', width: 90 }, { key: 'status', header: 'Status', width: 80 }], w: 500, h: 160 } },
+      { label: 'Tabel Materi', icon: '📋', config: { type: 'table', label: 'materials_table', dataSource: 'materials', fontSize: 11, fontFamily: 'Inter', headerColor: '#ffffff', headerBg: '#1a1a1a', rowColor: '#1a1a1a', rowBg: '#ffffff', altRowBg: '#f6f6f8', borderColor: '#d0d0d0', columns: [{ key: 'order', header: 'No.', width: 44 }, { key: 'title', header: 'Learning Materials', width: null }, { key: 'type', header: 'Jenis', width: 100 }, { key: 'learning_hours', header: 'JP', width: 60 }, { key: 'description', header: 'Deskripsi', width: 220 }], w: 500, h: 160 } },
     ] },
 ];
 
@@ -817,10 +882,53 @@ function PropertiesPanel({ element, onUpdate, paperSize, setPaperSize, orientati
   }
 
   if (el.type === 'table') {
+    const dataSource = el.dataSource || 'sessions';
+    const availableColumns = TABLE_COLUMN_OPTIONS[dataSource];
+    const columns = el.columns || availableColumns;
     return (
       <div>
-        <PropSection label="Tabel Sesi">
+        <PropSection label="Data Tabel">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 3 }}>Sumber Data</label>
+              <select
+                value={dataSource}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  onUpdate(el.id, { dataSource: next, columns: TABLE_COLUMN_OPTIONS[next] });
+                }}
+                style={{ width: '100%', fontSize: 12 }}
+              >
+                <option value="materials">Learning Materials</option>
+                <option value="sessions">Sesi Pembelajaran</option>
+              </select>
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Kolom dan Judul</span>
+              {availableColumns.map((option) => {
+                const activeColumn = columns.find((column) => column.key === option.key);
+                return (
+                  <div key={option.key} style={{ display: 'grid', gridTemplateColumns: '22px 1fr', gap: 5, alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!activeColumn}
+                      onChange={(e) => {
+                        const nextColumns = e.target.checked
+                          ? availableColumns.filter((candidate) => candidate.key === option.key || columns.some((column) => column.key === candidate.key)).map((candidate) => columns.find((column) => column.key === candidate.key) || candidate)
+                          : columns.filter((column) => column.key !== option.key);
+                        up('columns', nextColumns);
+                      }}
+                    />
+                    <input
+                      value={activeColumn?.header || option.header}
+                      disabled={!activeColumn}
+                      onChange={(e) => up('columns', columns.map((column) => column.key === option.key ? { ...column, header: e.target.value } : column))}
+                      style={{ width: '100%', fontSize: 11 }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
             <div>
               <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 3 }}>Ukuran Font</label>
               <input type="number" min={8} max={20} value={el.fontSize || 11} onChange={(e) => up('fontSize', parseInt(e.target.value))} style={{ width: '100%', fontSize: 12 }} />
@@ -918,7 +1026,7 @@ function PropertiesPanel({ element, onUpdate, paperSize, setPaperSize, orientati
           onChange={(e) => onUpdate(el.id, { content: e.target.value })}
           rows={3}
           style={{ width: '100%', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
-          placeholder="Token: {{participant_name}}, {{event_title}}, {{issued_date}}, {{certificate_number}}"
+          placeholder="Token: {{participant_name}}, {{event_title}}, {{issued_date}}, {{certificate_number}}, {{predicate}}, {{final_score}}"
         />
         <p style={{ margin: '4px 0 0', fontSize: 10, color: 'var(--fg-3)' }}>Gunakan Enter untuk baris baru. Token diganti dengan data sertifikat saat diterbitkan.</p>
       </PropSection>
@@ -963,7 +1071,13 @@ function PreviewCanvas({ template, participant }) {
     issued_date:             participant?.issued_date             || SAMPLE.issued_date,
     certificate_number:      participant?.certificate_number      || SAMPLE.certificate_number,
     verification_url:        participant?.verification_url        || SAMPLE.verification_url,
+    official_name:           template?.signature_name             || SAMPLE.official_name,
+    official_title:          template?.signature_title            || SAMPLE.official_title,
+    predicate:               participant?.predicate               || SAMPLE.predicate,
+    final_score:             participant?.final_score != null ? String(participant.final_score) : SAMPLE.final_score,
     sessions:                SAMPLE.sessions,
+    materials:               participant?.materials               || SAMPLE.materials,
+    total_learning_hours:    totalLearningHours(participant?.materials || SAMPLE.materials),
   };
   return <SharedCertPreview template={tpl} tokenValues={tokenValues} maxWidth={520} />;
 }
@@ -1045,7 +1159,7 @@ function TplList({ templates, activeId, onSelect, onNew, onRename, isLoading, si
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', cursor: 'pointer', borderLeft: `3px solid ${activeId === t.id ? 'var(--accent)' : 'transparent'}`, background: activeId === t.id ? 'color-mix(in srgb,var(--accent) 8%,transparent)' : 'transparent', transition: 'all 0.12s' }}>
           {t.background_image_path
             ? <img src={t.background_image_path} alt="" style={{ width: 24, height: 24, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }} />
-            : <span style={{ width: 24, height: 24, background: t.accent_color || '#8a05ff', borderRadius: 4, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Award size={11} color="#fff" /></span>
+            : <span style={{ width: 24, height: 24, background: t.accent_color || '#c42007', borderRadius: 4, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Award size={11} color="#fff" /></span>
           }
           <div style={{ minWidth: 0, flex: 1 }}>
             {renamingId === t.id
@@ -1163,7 +1277,11 @@ function IssueCertificate({ templates }) {
 
   const allChecked = participants.length > 0 && selected.size === participants.length;
   const selectedTemplate = templates.find((t) => String(t.id) === String(templateId));
-  const previewParticipants = (previewData?.participants || []).map((p) => ({ ...p, event_title: previewData?.event?.title }));
+  const previewParticipants = (previewData?.participants || []).map((p) => ({
+    ...p,
+    event_title: previewData?.event?.title,
+    materials: previewData?.event?.materials || [],
+  }));
   const previewParticipant = previewParticipants.find((p) => String(p.user_id) === String(previewUserId)) || previewParticipants[0];
   const warnings = selectedTemplate ? getTemplateWarnings(selectedTemplate) : [];
 
@@ -1179,7 +1297,7 @@ function IssueCertificate({ templates }) {
         <div className="section-title"><h2>Pilih Event & Template</h2></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: '4px 0' }}>
           <div className="fm-field">
-            <label>Training Event</label>
+            <label>Kegiatan Pelatihan</label>
             {loadingEvents
               ? <div style={{ fontSize: 12, color: 'var(--fg-3)' }}><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Memuat…</div>
               : <select value={eventUuid} onChange={(e) => { setEventUuid(e.target.value); setSelected(new Set()); }}>
@@ -1267,9 +1385,16 @@ function IssueCertificate({ templates }) {
                       <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{p.nip} · {p.opd_name}</span>
                     </div>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                    {p.completed_at ? new Date(p.completed_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {p.predicate && (
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 3, background: p.predicate === 'Sangat Baik' ? '#dcfce7' : p.predicate === 'Baik' ? '#dbeafe' : p.predicate === 'Cukup' ? '#fef9c3' : '#fee2e2', color: p.predicate === 'Sangat Baik' ? '#166534' : p.predicate === 'Baik' ? '#1e40af' : p.predicate === 'Cukup' ? '#854d0e' : '#991b1b' }}>
+                        {p.predicate} {p.final_score != null ? `(${p.final_score})` : ''}
+                      </span>
+                    )}
+                    <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+                      {p.completed_at ? new Date(p.completed_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1320,6 +1445,14 @@ function IssueCertificate({ templates }) {
                   <strong style={{ display: 'block', fontSize: 13 }}>{previewParticipant.name}</strong>
                   <span style={{ display: 'block', fontSize: 11, color: 'var(--fg-3)' }}>{previewParticipant.nip || previewParticipant.email}</span>
                 </div>
+                {previewParticipant.predicate && (
+                  <div>
+                    <p className="mono-kicker text-muted" style={{ margin: '0 0 4px' }}>Predikat</p>
+                    <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 4, background: previewParticipant.predicate === 'Sangat Baik' ? '#dcfce7' : previewParticipant.predicate === 'Baik' ? '#dbeafe' : previewParticipant.predicate === 'Cukup' ? '#fef9c3' : '#fee2e2', color: previewParticipant.predicate === 'Sangat Baik' ? '#166534' : previewParticipant.predicate === 'Baik' ? '#1e40af' : previewParticipant.predicate === 'Cukup' ? '#854d0e' : '#991b1b' }}>
+                      {previewParticipant.predicate}{previewParticipant.final_score != null ? ` — ${previewParticipant.final_score}` : ''}
+                    </span>
+                  </div>
+                )}
                 <div>
                   <p className="mono-kicker text-muted" style={{ margin: '0 0 4px' }}>URL Verifikasi</p>
                   <a href={previewParticipant.verification_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, wordBreak: 'break-all', color: 'var(--accent)' }}>{previewParticipant.verification_url}</a>
@@ -1351,6 +1484,12 @@ function CertPrintTarget({ certData }) {
     issued_date:             issued_date                || '',
     certificate_number:      certificate_number         || '',
     verification_url:        verification_url           || '',
+    official_name:           template.signature_name    || '',
+    official_title:          template.signature_title   || '',
+    predicate:               p?.predicate               || '',
+    final_score:             p?.final_score != null ? String(p.final_score) : '',
+    materials:               event?.materials           || [],
+    total_learning_hours:    totalLearningHours(event?.materials || []),
   };
   return <CertPrintArea template={template} tokenValues={tokenValues} />;
 }
@@ -1386,14 +1525,20 @@ function CertificateList() {
     issued_date:             certDetail.issued_date                         || '',
     certificate_number:      certDetail.certificate_number                  || '',
     verification_url:        certDetail.verification_url                    || '',
+    official_name:           certDetail.template?.signature_name            || '',
+    official_title:          certDetail.template?.signature_title           || '',
+    predicate:               certDetail.participant?.predicate              || '',
+    final_score:             certDetail.participant?.final_score != null ? String(certDetail.participant.final_score) : '',
     sessions:                certDetail.event?.sessions                     || [],
+    materials:               certDetail.event?.materials                    || [],
+    total_learning_hours:    totalLearningHours(certDetail.event?.materials || []),
   } : {};
 
   const hasBack = !!(certDetail?.template?.layout?.back_canvas_elements?.length);
 
   return (
     <div className="page-stack">
-      <div className="page-head"><p className="mono-kicker text-muted">Learning</p><h1>Sertifikat Saya</h1></div>
+      <div className="page-head"><p className="mono-kicker text-muted">Pembelajaran</p><h1>Sertifikat Saya</h1></div>
       <section className="enterprise-card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="section-title" style={{ padding: '14px 18px' }}><h2>Riwayat Sertifikat</h2><span className="badge-active">{records.length} sertifikat</span></div>
         {isLoading && <div className="resource-note">Memuat…</div>}
@@ -1523,6 +1668,8 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
   const [orientation, setOrientation] = useState('landscape');
   const [margin, setMargin]         = useState(32);
   const [bgColor, setBgColor]       = useState('#ffffff');
+  const [signatureName, setSignatureName] = useState('');
+  const [signatureTitle, setSignatureTitle] = useState('');
 
   // Panel visibility
   const [showLeft, setShowLeft]   = useState(true);
@@ -1552,6 +1699,112 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
   });
   const imageAssets = imageAssetData?.data ?? [];
 
+  const { data: officials = [], isLoading: officialsLoading } = useQuery({
+    queryKey: ['certificate-officials'],
+    queryFn: () => api.get('/certificate-templates/officials').then((r) => r.data.data),
+    enabled: canCreate,
+  });
+  const defaultOfficial = officials.find((official) => official.is_default) || officials[0];
+  const draftKey = `certificate-builder-draft-${session?.user?.id || 'anonymous'}`;
+  const draftReadyRef = useRef(false);
+  const baselineRef = useRef('');
+  const [draftStatus, setDraftStatus] = useState('');
+  const [hasBrowserDraft, setHasBrowserDraft] = useState(false);
+
+  useEffect(() => {
+    if (editing || signatureName || !defaultOfficial) return;
+    setSignatureName(defaultOfficial.name);
+    setSignatureTitle(defaultOfficial.position_name || '');
+  }, [defaultOfficial, editing, signatureName]);
+
+  useEffect(() => {
+    if (draftReadyRef.current || officialsLoading) return;
+
+    const current = certificateDraftSnapshot({
+      editing, tplName, paperSize, orientation, margin, bgColor,
+      signatureName: signatureName || defaultOfficial?.name || '',
+      signatureTitle: signatureTitle || defaultOfficial?.position_name || '',
+      elements, backElements, activePage,
+    });
+    const raw = window.localStorage.getItem(draftKey);
+
+    if (raw) {
+      try {
+        const draft = JSON.parse(raw);
+        if (draft?.version === CERTIFICATE_DRAFT_VERSION && window.confirm('Ada draft perubahan sertifikat yang belum disimpan. Pulihkan draft dari browser?')) {
+          const draftSnapshot = { ...draft };
+          delete draftSnapshot.savedAt;
+          const draftTemplate = draft.templateId
+            ? templates.find((template) => template.id === draft.templateId) || { id: draft.templateId, name: draft.tplName }
+            : null;
+          setEditing(draftTemplate);
+          setTplName(draft.tplName || 'Template Baru');
+          setPaperSize(draft.paperSize || 'a4');
+          setOrientation(draft.orientation || 'landscape');
+          setMargin(Number(draft.margin) || 32);
+          setBgColor(draft.bgColor || '#ffffff');
+          setSignatureName(draft.signatureName || defaultOfficial?.name || '');
+          setSignatureTitle(draft.signatureTitle || defaultOfficial?.position_name || '');
+          setElements(Array.isArray(draft.elements) ? draft.elements : defaultElements(draft.orientation || 'landscape', draft.paperSize || 'a4'));
+          setBackElements(Array.isArray(draft.backElements) ? draft.backElements : defaultBackElements(draft.orientation || 'landscape', draft.paperSize || 'a4'));
+          setActivePage(draft.activePage === 'back' ? 'back' : 'front');
+          baselineRef.current = JSON.stringify(draftSnapshot);
+          setHasBrowserDraft(true);
+          setDraftStatus('Draft browser dipulihkan.');
+        } else {
+          window.localStorage.removeItem(draftKey);
+          baselineRef.current = JSON.stringify(current);
+          setHasBrowserDraft(false);
+        }
+      } catch {
+        window.localStorage.removeItem(draftKey);
+        baselineRef.current = JSON.stringify(current);
+        setHasBrowserDraft(false);
+      }
+    } else {
+      baselineRef.current = JSON.stringify(current);
+      setHasBrowserDraft(false);
+    }
+
+    draftReadyRef.current = true;
+  }, [activePage, backElements, bgColor, defaultOfficial, draftKey, editing, elements, officialsLoading, margin, orientation, paperSize, signatureName, signatureTitle, templates, tplName]);
+
+  useEffect(() => {
+    if (!draftReadyRef.current) return undefined;
+
+    const draft = certificateDraftSnapshot({
+      editing, tplName, paperSize, orientation, margin, bgColor,
+      signatureName, signatureTitle, elements, backElements, activePage,
+    });
+    const serialized = JSON.stringify(draft);
+    if (serialized === baselineRef.current) return undefined;
+
+    const timer = window.setTimeout(() => {
+      window.localStorage.setItem(draftKey, JSON.stringify({ ...draft, savedAt: new Date().toISOString() }));
+      setHasBrowserDraft(true);
+      setDraftStatus(`Draft browser tersimpan ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [activePage, backElements, bgColor, draftKey, editing, elements, margin, orientation, paperSize, signatureName, signatureTitle, tplName]);
+
+  useEffect(() => {
+    const saveBeforeUnload = () => {
+      if (!draftReadyRef.current) return;
+      const draft = certificateDraftSnapshot({
+        editing, tplName, paperSize, orientation, margin, bgColor,
+        signatureName, signatureTitle, elements, backElements, activePage,
+      });
+      const serialized = JSON.stringify(draft);
+      if (serialized !== baselineRef.current) {
+        window.localStorage.setItem(draftKey, JSON.stringify({ ...draft, savedAt: new Date().toISOString() }));
+      }
+    };
+
+    window.addEventListener('beforeunload', saveBeforeUnload);
+    return () => window.removeEventListener('beforeunload', saveBeforeUnload);
+  }, [activePage, backElements, bgColor, draftKey, editing, elements, margin, orientation, paperSize, signatureName, signatureTitle, tplName]);
+
   function loadTemplate(t) {
     setEditing(t);
     setTplName(t.name);
@@ -1561,8 +1814,15 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
     setOrientation(nextOrientation);
     setMargin(parseInt(t.layout?.margin ?? 32));
     setBgColor(t.background_color || '#ffffff');
+    setSignatureName(t.signature_name || defaultOfficial?.name || '');
+    setSignatureTitle(t.signature_title || defaultOfficial?.position_name || '');
     const elems = t.layout?.canvas_elements;
     let loaded = Array.isArray(elems) && elems.length > 0 ? elems : defaultElements(nextOrientation, nextPaperSize);
+    loaded = loaded.map((element) => (
+      element.label === 'signature' && String(element.content || '').includes('Nama Pejabat')
+        ? { ...element, content: '{{official_name}}\n{{official_title}}' }
+        : element
+    ));
     // backward compat: promote background_image_path to a canvas element
     if (t.background_image_path && !loaded.some((e) => e.label === 'background')) {
       const { w, h } = canvasDims(nextPaperSize, nextOrientation);
@@ -1585,6 +1845,8 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
     setOrientation(o);
     setMargin(32);
     setBgColor('#ffffff');
+    setSignatureName(defaultOfficial?.name || '');
+    setSignatureTitle(defaultOfficial?.position_name || '');
     setElements(defaultElements(o, p));
     setBackElements(defaultBackElements(o, p));
     setActivePage('front');
@@ -1633,6 +1895,14 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
       ? api.put(`/certificate-templates/${editing.id}`, payload).then((r) => r.data.data)
       : api.post('/certificate-templates', payload).then((r) => r.data.data),
     onSuccess: (saved) => {
+      const savedSnapshot = certificateDraftSnapshot({
+        editing: saved, tplName, paperSize, orientation, margin, bgColor,
+        signatureName, signatureTitle, elements, backElements, activePage,
+      });
+      baselineRef.current = JSON.stringify(savedSnapshot);
+      window.localStorage.removeItem(draftKey);
+      setHasBrowserDraft(false);
+      setDraftStatus('Semua perubahan tersimpan.');
       toast.success(editing ? 'Template diperbarui.' : 'Template disimpan.');
       qc.invalidateQueries({ queryKey: ['certificate-templates'] });
       setEditing(saved);
@@ -1689,8 +1959,8 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
       text_color: '#1a1a1a',
       font_family: 'Brawler',
       logo_path: '',
-      signature_name: '',
-      signature_title: '',
+      signature_name: signatureName,
+      signature_title: signatureTitle,
       body_template: '{{participant_name}}',
       description_text: '',
       footer_text: 'Corporate University BKPSDM',
@@ -1737,6 +2007,28 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
             style={{ fontSize: 18, fontWeight: 700, border: 'none', background: 'transparent', outline: 'none', padding: 0, color: 'var(--fg)', width: '100%', maxWidth: 360 }}
             placeholder="Nama Template…"
           />
+          {draftStatus && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+              <span style={{ fontSize: 10, color: 'var(--fg-3)' }}>{draftStatus}</span>
+              {hasBrowserDraft && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.localStorage.removeItem(draftKey);
+                    baselineRef.current = JSON.stringify(certificateDraftSnapshot({
+                      editing, tplName, paperSize, orientation, margin, bgColor,
+                      signatureName, signatureTitle, elements, backElements, activePage,
+                    }));
+                    setHasBrowserDraft(false);
+                    setDraftStatus('Draft browser dihapus.');
+                  }}
+                  style={{ border: 0, background: 'transparent', padding: 0, color: 'var(--crimson)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Hapus draft
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1836,6 +2128,43 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
         </div>
       </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 10 }}>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-2)' }}>Nama Pejabat Penandatangan</span>
+          <select
+            value={officials.find((official) => official.name === signatureName && official.position_name === signatureTitle)?.id || ''}
+            onChange={(e) => {
+              const official = officials.find((item) => String(item.id) === e.target.value);
+              if (official) {
+                setSignatureName(official.name);
+                setSignatureTitle(official.position_name || '');
+              }
+            }}
+            style={{ minHeight: 36, border: '1px solid var(--border)', background: '#fff', padding: '7px 10px', color: 'var(--fg)' }}
+          >
+            <option value="">Pilih pejabat dari database</option>
+            {officials.map((official) => (
+              <option key={official.id} value={official.id}>{official.name} - {official.position_name}{official.is_default ? ' (Default)' : ''}</option>
+            ))}
+          </select>
+          <input
+            value={signatureName}
+            onChange={(e) => setSignatureName(e.target.value)}
+            placeholder="Nama lengkap pejabat"
+            style={{ minHeight: 36, border: '1px solid var(--border)', background: '#fff', padding: '7px 10px', color: 'var(--fg)' }}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-2)' }}>Jabatan Pejabat</span>
+          <input
+            value={signatureTitle}
+            onChange={(e) => setSignatureTitle(e.target.value)}
+            placeholder="Contoh: Kepala BKPSDM"
+            style={{ minHeight: 36, border: '1px solid var(--border)', background: '#fff', padding: '7px 10px', color: 'var(--fg)' }}
+          />
+        </label>
+      </div>
+
       {/* Editor grid */}
       <div style={{
         display: 'grid',
@@ -1906,6 +2235,12 @@ export default function CertificateBuilder({ session, sidebarHidden = false, onT
               setSelected={(id) => { setSelected(id); if (id !== editingId) setEditingId(null); }}
               setEditingId={setEditingId}
               setElements={setActiveElements}
+              tokenValues={{
+                ...SAMPLE,
+                official_name: signatureName || SAMPLE.official_name,
+                official_title: signatureTitle || SAMPLE.official_title,
+                total_learning_hours: totalLearningHours(SAMPLE.materials),
+              }}
             />
           </div>
         </div>

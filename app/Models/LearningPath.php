@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Modules\Certificate\Models\CertificateTemplate;
 
 #[Fillable([
     'uuid', 'title', 'slug', 'description', 'thumbnail_url',
-    'status', 'target_role', 'estimated_hours', 'is_sequential', 'created_by',
+    'status', 'target_role', 'estimated_hours', 'is_sequential',
+    'certificate_template_id', 'created_by',
 ])]
 class LearningPath extends Model
 {
@@ -42,5 +44,10 @@ class LearningPath extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function certificateTemplate(): BelongsTo
+    {
+        return $this->belongsTo(CertificateTemplate::class, 'certificate_template_id');
     }
 }

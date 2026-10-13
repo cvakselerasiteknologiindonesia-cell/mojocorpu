@@ -11,13 +11,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SuspiciousRequestDetector
 {
-    // Paths where body inspection is skipped (file uploads, media)
+    // Paths where body inspection is skipped (file uploads, media, and verified third-party webhooks)
     private const SKIP_BODY_PATHS = [
         'profile/avatar',
         'blog-posts/media',
         'discussion-forum/media',
         'learning-materials',
         'kms-assets',
+        'payment/webhook', // [H2] Midtrans payload legitimately contains special chars; security via signature
     ];
 
     // Paths exempt from ALL detection (health, public static)
@@ -131,7 +132,8 @@ class SuspiciousRequestDetector
     ];
 
     // Auto-block threshold: ≥ N attack hits from same IP in window (minutes)
-    private const ATTACK_BLOCK_LIMIT  = 3;
+    private const ATTACK_BLOCK_LIMIT = 3;
+
     private const ATTACK_BLOCK_WINDOW = 30;
 
     public function handle(Request $request, Closure $next): Response
@@ -145,7 +147,7 @@ class SuspiciousRequestDetector
             }
         }
 
-        $ip        = $request->ip();
+        $ip = $request->ip();
         $userAgent = $request->userAgent() ?? '';
 
         if (app()->environment(['local', 'testing']) && in_array($ip, ['127.0.0.1', '::1'], true)) {
@@ -157,7 +159,7 @@ class SuspiciousRequestDetector
 
         // 2. Attack patterns in URL + query string (always)
         $targets = [
-            'url'   => $request->fullUrl(),
+            'url' => $request->fullUrl(),
             'query' => $request->getQueryString() ?? '',
         ];
 
@@ -194,7 +196,7 @@ class SuspiciousRequestDetector
     public function terminate(Request $request, Response $response): void
     {
         if ($response->getStatusCode() === 404) {
-            $ip   = $request->ip();
+            $ip = $request->ip();
             $path = ltrim($request->path(), '/');
 
             $recent404s = SuspiciousRequest::where('ip_address', $ip)
@@ -204,12 +206,12 @@ class SuspiciousRequestDetector
 
             // Log 404 every time
             SuspiciousRequest::create([
-                'ip_address'  => $ip,
-                'method'      => $request->method(),
-                'path'        => $path,
-                'user_agent'  => $request->userAgent(),
+                'ip_address' => $ip,
+                'method' => $request->method(),
+                'path' => $path,
+                'user_agent' => $request->userAgent(),
                 'attack_type' => 'enumeration_404',
-                'severity'    => 'low',
+                'severity' => 'low',
             ]);
 
             // Escalate only when threshold crossed
@@ -222,11 +224,11 @@ class SuspiciousRequestDetector
 
                 if (! $alreadyFlagged) {
                     SecurityEvent::create([
-                        'type'        => 'enumeration_attack',
-                        'severity'    => 'medium',
-                        'ip_address'  => $ip,
+                        'type' => 'enumeration_attack',
+                        'severity' => 'medium',
+                        'ip_address' => $ip,
                         'description' => "Endpoint enumeration: {$recent404s}+ 404 responses sent to IP {$ip} in 10 minutes.",
-                        'metadata'    => ['count_404' => $recent404s + 1, 'window_minutes' => 10],
+                        'metadata' => ['count_404' => $recent404s + 1, 'window_minutes' => 10],
                     ]);
                 }
             }
@@ -256,12 +258,12 @@ class SuspiciousRequestDetector
         ?string $snippet
     ): void {
         SuspiciousRequest::create([
-            'ip_address'      => $ip,
-            'method'          => $method,
-            'path'            => $path,
-            'user_agent'      => substr($ua, 0, 500),
-            'attack_type'     => $type,
-            'severity'        => $severity,
+            'ip_address' => $ip,
+            'method' => $method,
+            'path' => $path,
+            'user_agent' => substr($ua, 0, 500),
+            'attack_type' => $type,
+            'severity' => $severity,
             'pattern_matched' => substr($pattern, 0, 255),
             'payload_snippet' => $snippet,
         ]);
@@ -277,11 +279,11 @@ class SuspiciousRequestDetector
         if (! $alreadyFlagged) {
             $label = str_replace('_', ' ', ucfirst($type));
             SecurityEvent::create([
-                'type'        => $type,
-                'severity'    => $severity,
-                'ip_address'  => $ip,
+                'type' => $type,
+                'severity' => $severity,
+                'ip_address' => $ip,
                 'description' => "{$label} detected from IP {$ip}: {$path}",
-                'metadata'    => ['pattern' => $pattern, 'path' => $path, 'method' => $method, 'snippet' => $snippet],
+                'metadata' => ['pattern' => $pattern, 'path' => $path, 'method' => $method, 'snippet' => $snippet],
             ]);
         }
 
@@ -310,14 +312,14 @@ class SuspiciousRequestDetector
         if ($recentAttacks >= self::ATTACK_BLOCK_LIMIT) {
             $ids = app(IntrusionDetectionService::class);
             if (! $ids->isBlocked($ip)) {
-                $ids->blockIp($ip, "Auto-blocked: {$recentAttacks} attack attempts in " . self::ATTACK_BLOCK_WINDOW . ' min', 'auto', now()->addHours(6));
+                $ids->blockIp($ip, "Auto-blocked: {$recentAttacks} attack attempts in ".self::ATTACK_BLOCK_WINDOW.' min', 'auto', now()->addHours(6));
 
                 SecurityEvent::create([
-                    'type'        => 'repeated_attacks',
-                    'severity'    => 'critical',
-                    'ip_address'  => $ip,
-                    'description' => "IP {$ip} auto-blocked after {$recentAttacks} attack pattern detections in " . self::ATTACK_BLOCK_WINDOW . ' minutes.',
-                    'metadata'    => ['attack_count' => $recentAttacks, 'window_minutes' => self::ATTACK_BLOCK_WINDOW],
+                    'type' => 'repeated_attacks',
+                    'severity' => 'critical',
+                    'ip_address' => $ip,
+                    'description' => "IP {$ip} auto-blocked after {$recentAttacks} attack pattern detections in ".self::ATTACK_BLOCK_WINDOW.' minutes.',
+                    'metadata' => ['attack_count' => $recentAttacks, 'window_minutes' => self::ATTACK_BLOCK_WINDOW],
                 ]);
             }
         }
@@ -329,9 +331,9 @@ class SuspiciousRequestDetector
             return null;
         }
         $offset = $m[0][1];
-        $start  = max(0, $offset - 20);
-        $raw    = substr($value, $start, 80);
+        $start = max(0, $offset - 20);
+        $raw = substr($value, $start, 80);
 
-        return '…' . preg_replace('/[\r\n]+/', ' ', $raw) . '…';
+        return '…'.preg_replace('/[\r\n]+/', ' ', $raw).'…';
     }
 }

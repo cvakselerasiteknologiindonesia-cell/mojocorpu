@@ -6,6 +6,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../../api.js';
+import KmsSourcePreviewModal from '../../components/KmsSourcePreviewModal.jsx';
+import { getRoleNames } from '../../utils/permissions.js';
+import { safe } from '../../utils/sanitize.js';
+import { AssetModal } from '../facilitator/FacilitatorKmsContribution.jsx';
 
 function formatDate(d) {
   if (!d) return '—';
@@ -51,7 +55,7 @@ function RejectModal({ asset, onClose, onSuccess }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-box" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>Tolak Aset KMS</strong>
+          <strong>Tolak Aset Pengetahuan</strong>
           <button className="icon-button" onClick={onClose}><X size={16} /></button>
         </div>
         <div className="modal-body kms-reject-body">
@@ -70,6 +74,43 @@ function RejectModal({ asset, onClose, onSuccess }) {
             onClick={() => reviewMut.mutate()}>
             {reviewMut.isPending ? <Loader2 size={13} className="spin" /> : <XCircle size={13} />}
             {reviewMut.isPending ? 'Memproses…' : 'Tolak Aset'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Delete modal ────────────────────────────────────────── */
+function DeleteAssetModal({ asset, onClose, onConfirm, isDeleting }) {
+  const isApproved = asset?.status === 'approved';
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-box" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <strong>Hapus Aset Pengetahuan</strong>
+          <button className="icon-button" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
+        </div>
+        <div className="modal-body kms-delete-body">
+          <div className="kms-delete-alert">
+            <Trash2 size={18} />
+            <div>
+              <p>Anda akan menghapus aset:</p>
+              <strong>{asset.title}</strong>
+            </div>
+          </div>
+          <p className="kms-delete-note">
+            {isApproved
+              ? 'Aset yang sudah aktif tidak akan tampil lagi di daftar KMS. Riwayat tetap tersimpan untuk audit.'
+              : 'Aset ini tidak akan tampil lagi di daftar KMS. Riwayat tetap tersimpan untuk audit.'}
+          </p>
+        </div>
+        <div className="modal-foot">
+          <button className="outline-button compact" onClick={onClose}>Batal</button>
+          <button className="kms-delete-btn" disabled={isDeleting} onClick={() => onConfirm(asset)}>
+            {isDeleting ? <Loader2 size={13} className="spin" /> : <Trash2 size={13} />}
+            {isDeleting ? 'Menghapus...' : 'Hapus Aset'}
           </button>
         </div>
       </div>
@@ -124,7 +165,7 @@ function CategoryRow({ cat, onDelete, isDeleting }) {
       </div>
       <div className="kms-cat-actions">
         <button className="outline-button compact" onClick={() => setEditing(true)}>
-          <Pencil size={12} /> Edit
+          <Pencil size={12} /> Ubah
         </button>
         <button className="outline-button compact danger-lite"
           disabled={isDeleting || (cat.assets_count ?? 0) > 0}
@@ -237,11 +278,16 @@ function CategoriesTab() {
 }
 
 /* ── Assets tab ──────────────────────────────────────────── */
-function AssetsTab() {
+function AssetsTab({ canCreate, canReview, canDelete, onCreate }) {
   const qc = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [statusFilter, setStatusFilter] = useState(canReview ? 'pending' : 'approved');
   const [page, setPage]           = useState(1);
   const [rejectTarget, setRejectTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [previewTarget, setPreviewTarget] = useState(null);
+  const visibleStatusTabs = canReview
+    ? STATUS_TABS
+    : STATUS_TABS.filter((tab) => tab.key !== 'pending');
 
   const { data: stats } = useQuery({
     queryKey: ['kms-assets-stats'],
@@ -273,6 +319,17 @@ function AssetsTab() {
     onError: (err) => toast.error(err.response?.data?.message || 'Gagal menyetujui aset.'),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: (asset) => api.delete(`/kms-assets/${asset.uuid}`),
+    onSuccess: () => {
+      toast.success('Aset pengetahuan dihapus.');
+      setDeleteTarget(null);
+      qc.invalidateQueries({ queryKey: ['kms-assets-admin'] });
+      qc.invalidateQueries({ queryKey: ['kms-assets-stats'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Gagal menghapus aset.'),
+  });
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['kms-assets-admin'] });
     qc.invalidateQueries({ queryKey: ['kms-assets-stats'] });
@@ -289,7 +346,7 @@ function AssetsTab() {
           <p className="kms-kpi-val" style={{ color: stats?.pending > 0 ? 'var(--gold)' : undefined }}>
             {stats?.pending ?? '—'}
           </p>
-          <p className="kms-kpi-sub">perlu review</p>
+          <p className="kms-kpi-sub">perlu ditinjau</p>
         </div>
         <div className="enterprise-card kms-kpi-card">
           <p className="mono-kicker text-muted" style={{ color: 'var(--emerald)' }}>Disetujui</p>
@@ -309,14 +366,21 @@ function AssetsTab() {
       </div>
 
       {/* Status filter tabs */}
-      <div className="ev-tab-bar">
-        {STATUS_TABS.map(({ key, label }) => (
-          <TabBtn key={key} active={statusFilter === key}
-            onClick={() => { setStatusFilter(key); setPage(1); }}
-            badge={key === 'pending' ? stats?.pending : undefined}>
-            {label}
-          </TabBtn>
-        ))}
+      <div className="ev-tab-bar kms-status-toolbar" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {visibleStatusTabs.map(({ key, label }) => (
+            <TabBtn key={key} active={statusFilter === key}
+              onClick={() => { setStatusFilter(key); setPage(1); }}
+              badge={key === 'pending' ? stats?.pending : undefined}>
+              {label}
+            </TabBtn>
+          ))}
+        </div>
+        {canCreate && (
+          <button className="primary-button compact" type="button" onClick={onCreate}>
+            <Plus size={13} /> Buat Aset Pengetahuan
+          </button>
+        )}
       </div>
 
       {/* Asset list */}
@@ -326,9 +390,11 @@ function AssetsTab() {
             <p className="mono-kicker text-muted">
               {STATUS_TABS.find((t) => t.key === statusFilter)?.label ?? 'Semua'}
             </p>
-            <h2>Aset KMS</h2>
+            <h2>Aset Pengetahuan</h2>
           </div>
-          <span className="badge-active">{total}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="badge-active">{total}</span>
+          </div>
         </div>
 
         {isLoading && <div className="resource-note">Memuat aset…</div>}
@@ -352,12 +418,18 @@ function AssetsTab() {
                     {' · '}{asset.category_names?.join(', ') || 'Tanpa kategori'}
                     {' · '}{formatDate(asset.created_at)}
                   </span>
-                  {asset.description && (
-                    <span className="kms-asset-desc">
-                      {asset.description.length > 120
-                        ? asset.description.slice(0, 120) + '…'
-                        : asset.description}
+                  {asset.visibility === 'internal' && (
+                    <span className="kms-asset-meta">
+                      Cakupan: {asset.internal_scope === 'selected'
+                        ? (asset.opd_names?.join(', ') || 'OPD tertentu')
+                        : 'Semua OPD'}
                     </span>
+                  )}
+                  {asset.description && (
+                    <div
+                      className="kms-asset-desc"
+                      dangerouslySetInnerHTML={{ __html: safe(asset.description) }}
+                    />
                   )}
                   {asset.status === 'rejected' && asset.rejection_reason && (
                     <span className="kms-asset-rejection">
@@ -369,31 +441,47 @@ function AssetsTab() {
 
               {/* right: status + actions */}
               <div className="kms-asset-right">
-                <span className={`kms-status-chip ${statusClass(asset.status)}`}>
-                  {STATUS_LABEL[asset.status] ?? asset.status}
-                </span>
-                <div className="kms-asset-actions">
-                  {asset.file_url && (
-                    <a href={asset.file_url} target="_blank" rel="noreferrer"
-                      className="outline-button compact" title="Buka file">
+                <div className="kms-moderation-actions">
+                  <span className={`kms-status-chip ${statusClass(asset.status)}`}>
+                    {STATUS_LABEL[asset.status] ?? asset.status}
+                  </span>
+                  {canReview && (
+                    <div className="kms-review-actions">
+                      {asset.status !== 'approved' && (
+                        <button className="kms-review-btn kms-review-btn--approve"
+                          disabled={approveMut.isPending}
+                          onClick={() => approveMut.mutate(asset.uuid)}
+                          title="Setujui">
+                          {approveMut.isPending
+                            ? <Loader2 size={12} className="spin" />
+                            : <CheckCircle size={12} />}
+                          Setujui
+                        </button>
+                      )}
+                      {asset.status !== 'rejected' && (
+                        <button className="kms-review-btn kms-review-btn--reject"
+                          onClick={() => setRejectTarget(asset)} title="Tolak">
+                          <XCircle size={12} /> Tolak
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="kms-source-actions">
+                  {(asset.sources?.length ? asset.sources : (asset.file_url ? [{ file_url: asset.file_url }] : [])).map((source, index, list) => (
+                    <button key={source.id ?? `${source.file_url}-${index}`} type="button"
+                      className="outline-button compact kms-source-btn"
+                      title={list.length > 1 ? `Buka sumber ${index + 1}` : 'Buka file'}
+                      onClick={() => setPreviewTarget({ asset, source, index })}>
                       <ExternalLink size={12} />
-                    </a>
-                  )}
-                  {asset.status !== 'approved' && (
-                    <button className="kms-approve-btn"
-                      disabled={approveMut.isPending}
-                      onClick={() => approveMut.mutate(asset.uuid)}
-                      title="Setujui">
-                      {approveMut.isPending
-                        ? <Loader2 size={12} className="spin" />
-                        : <CheckCircle size={12} />}
-                      Setujui
                     </button>
-                  )}
-                  {asset.status !== 'rejected' && (
-                    <button className="outline-button compact danger-lite"
-                      onClick={() => setRejectTarget(asset)} title="Tolak">
-                      <XCircle size={12} /> Tolak
+                  ))}
+                  {canDelete && (
+                    <button type="button"
+                      className="outline-button compact kms-delete-action"
+                      title="Hapus aset"
+                      onClick={() => setDeleteTarget(asset)}>
+                      <Trash2 size={12} />
                     </button>
                   )}
                 </div>
@@ -417,19 +505,60 @@ function AssetsTab() {
       {rejectTarget && (
         <RejectModal asset={rejectTarget} onClose={() => setRejectTarget(null)} onSuccess={invalidate} />
       )}
+      {deleteTarget && (
+        <DeleteAssetModal
+          asset={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={(asset) => deleteMut.mutate(asset)}
+          isDeleting={deleteMut.isPending}
+        />
+      )}
+      {previewTarget && (
+        <KmsSourcePreviewModal
+          asset={previewTarget.asset}
+          source={previewTarget.source}
+          index={previewTarget.index}
+          onClose={() => setPreviewTarget(null)}
+        />
+      )}
     </div>
   );
 }
 
 /* ── Main page ───────────────────────────────────────────── */
-export default function AdminOpdKms() {
+export default function AdminOpdKms({ session }) {
+  const qc = useQueryClient();
   const [tab, setTab] = useState('assets');
+  const [showCreate, setShowCreate] = useState(false);
+  const roleNames = getRoleNames(session?.user);
+  const canCreate = roleNames.includes('admin-opd');
+  const canReview = roleNames.includes('super-admin');
+  const canDelete = roleNames.includes('super-admin');
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['kms-categories-admin'],
+    queryFn: async () => (await api.get('/kms-categories')).data.data,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: opds = [] } = useQuery({
+    queryKey: ['kms-opd-options'],
+    queryFn: async () => (await api.get('/kms-opds/options')).data.data,
+    staleTime: 5 * 60 * 1000,
+    enabled: canCreate,
+  });
+
+  const afterCreate = () => {
+    qc.invalidateQueries({ queryKey: ['kms-assets-admin'] });
+    qc.invalidateQueries({ queryKey: ['kms-assets-stats'] });
+    setShowCreate(false);
+  };
 
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Knowledge Management</p>
-        <h1>KMS Assets</h1>
+        <p className="mono-kicker text-muted">Manajemen Pengetahuan</p>
+        <h1>Aset KMS</h1>
       </div>
 
       {/* Main tab bar */}
@@ -442,8 +571,18 @@ export default function AdminOpdKms() {
         </TabBtn>
       </div>
 
-      {tab === 'assets'     && <AssetsTab />}
+      {tab === 'assets'     && <AssetsTab canCreate={canCreate} canReview={canReview} canDelete={canDelete} onCreate={() => setShowCreate(true)} />}
       {tab === 'categories' && <CategoriesTab />}
+
+      {showCreate && canCreate && (
+        <AssetModal
+          asset={null}
+          categories={categories}
+          opds={opds}
+          onClose={() => setShowCreate(false)}
+          onSuccess={afterCreate}
+        />
+      )}
     </div>
   );
 }

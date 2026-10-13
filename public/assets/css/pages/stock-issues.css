@@ -1,0 +1,56 @@
+.stock-issues-heading h4 {
+    text-wrap: balance;
+}
+
+.stock-issues-status-card {
+    border-radius: 8px;
+}
+
+.stock-issues-toolbar-actions {
+    justify-content: flex-end;
+}
+
+.stock-issues-search {
+    min-width: 320px;
+}
+
+.stock-issues-filter-menu {
+    min-width: 220px;
+}
+
+.stock-issues-table-wrap .table th,
+.stock-issues-table-wrap .table td {
+    vertical-align: middle;
+}
+
+@media (max-width: 991.98px) {
+    .stock-issues-toolbar > .row {
+        align-items: stretch !important;
+    }
+
+    .stock-issues-toolbar .col,
+    .stock-issues-toolbar .col-auto {
+        width: 100%;
+    }
+
+    .stock-issues-toolbar-actions > .col-auto,
+    .stock-issues-search {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .stock-issues-toolbar-actions .btn,
+    .stock-issues-toolbar-actions .dropdown,
+    .stock-issues-toolbar-actions form {
+        width: 100%;
+    }
+
+    .stock-issues-pagination {
+        gap: 12px;
+    }
+
+    .stock-issues-pagination .col,
+    .stock-issues-pagination .col-auto {
+        width: 100%;
+    }
+}

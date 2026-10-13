@@ -35,7 +35,7 @@ class DiscussionForumController extends Controller
     {
         $data = $request->validate([
             'title' => 'required|string|max:255',
-            'body'  => 'required|string',
+            'body' => 'required|string',
         ]);
 
         /** @var DiscussionThread $thread */
@@ -46,7 +46,7 @@ class DiscussionForumController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $thread->load('author:id,name,nip')->loadCount('comments'),
+            'data' => $thread->load('author:id,name,nip')->loadCount('comments'),
         ], 201);
     }
 
@@ -67,12 +67,12 @@ class DiscussionForumController extends Controller
         $thread = DiscussionThread::where('uuid', $uuid)->firstOrFail();
 
         if ($thread->created_by !== $request->user()->id && ! $request->user()->hasAnyRole(['super-admin', 'admin-opd'])) {
-            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk mengubah diskusi ini.'], 403);
         }
 
         $data = $request->validate([
-            'title'  => 'sometimes|string|max:255',
-            'body'   => 'sometimes|string',
+            'title' => 'sometimes|string|max:255',
+            'body' => 'sometimes|string',
             'status' => 'sometimes|in:open,closed',
         ]);
 
@@ -87,7 +87,7 @@ class DiscussionForumController extends Controller
         $thread = DiscussionThread::where('uuid', $uuid)->firstOrFail();
 
         if ($thread->created_by !== $request->user()->id && ! $request->user()->hasAnyRole(['super-admin', 'admin-opd'])) {
-            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menghapus diskusi ini.'], 403);
         }
 
         $thread->delete();
@@ -107,15 +107,15 @@ class DiscussionForumController extends Controller
         /** @var DiscussionComment $comment */
         $comment = DiscussionComment::create([
             'thread_id' => $thread->id,
-            'user_id'   => $request->user()->id,
-            'body'      => $data['body'],
+            'user_id' => $request->user()->id,
+            'body' => $data['body'],
         ]);
 
         $thread->touch();
 
         return response()->json([
             'success' => true,
-            'data'    => $comment->load('author:id,name,nip'),
+            'data' => $comment->load('author:id,name,nip'),
         ], 201);
     }
 
@@ -126,7 +126,7 @@ class DiscussionForumController extends Controller
             ->findOrFail($commentId);
 
         if ($comment->user_id !== $request->user()->id && ! $request->user()->hasAnyRole(['super-admin', 'admin-opd'])) {
-            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk mengubah balasan ini.'], 403);
         }
 
         $data = $request->validate(['body' => 'required|string']);
@@ -142,7 +142,7 @@ class DiscussionForumController extends Controller
             ->findOrFail($commentId);
 
         if ($comment->user_id !== $request->user()->id && ! $request->user()->hasAnyRole(['super-admin', 'admin-opd'])) {
-            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menghapus balasan ini.'], 403);
         }
 
         $comment->delete();
@@ -158,11 +158,29 @@ class DiscussionForumController extends Controller
             'file' => 'required|file|mimes:jpg,jpeg,png,gif,webp,mp4,webm,mov|max:51200',
         ]);
 
-        $path = $request->file('file')->store('discussion-media', 'public');
+        // [M5] Simpan di local disk — diakses via authenticated download route
+        $path = $request->file('file')->store('discussion-media', 'local');
 
         return response()->json([
             'success' => true,
-            'data'    => ['url' => Storage::disk('public')->url($path)],
+            'data' => ['url' => url('/api/discussion-forum/media/'.basename($path)), 'path' => $path],
         ], 201);
+    }
+
+    public function serveMedia(Request $request, string $filename)
+    {
+        // Sanitize: no directory traversal
+        $filename = basename($filename);
+        $path = 'discussion-media/'.$filename;
+
+        if (! Storage::disk('local')->exists($path)) {
+            // Backwards-compat for old public files
+            if (Storage::disk('public')->exists($path)) {
+                return Storage::disk('public')->response($path);
+            }
+            abort(404);
+        }
+
+        return Storage::disk('local')->response($path);
     }
 }

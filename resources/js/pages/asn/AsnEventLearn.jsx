@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { safe } from '../../utils/sanitize.js';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -475,7 +476,7 @@ function Asesmen({ assessment, eventUuid, onDone, onCertificate }) {
                 <span className="q-type-chip">{Q_TYPE_LABELS[q.type] || q.type}</span>
               </div>
 
-              <div className="q-text" dangerouslySetInnerHTML={{ __html: q.question }} />
+              <div className="q-text" dangerouslySetInnerHTML={{ __html: safe(q.question) }} />
 
               <div className="q-options">
                 {/* Multiple choice */}
@@ -898,8 +899,10 @@ const TAB_LABELS = { materi: 'Materi', sesi: 'Sesi', asesmen: 'Asesmen', presens
 
 export default function AsnEventLearn() {
   const { uuid } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('materi');
+  const initialTab = new URLSearchParams(location.search).has('assessment') ? 'asesmen' : 'materi';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [certModalUuid, setCertModalUuid] = useState(null);
 
   const { data, isLoading, isError, error } = useQuery({

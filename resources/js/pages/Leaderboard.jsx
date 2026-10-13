@@ -163,12 +163,12 @@ export default function Leaderboard() {
   return (
     <div className="page-stack">
       <div className="page-head">
-        <p className="mono-kicker text-muted">Rangking</p>
-        <h1>Leaderboard</h1>
+        <p className="mono-kicker text-muted">Peringkat</p>
+        <h1>Papan Peringkat</h1>
       </div>
 
       {isLoading && <LeaderboardSkeleton />}
-      {isError   && <div className="form-error-visible">Gagal memuat leaderboard.</div>}
+      {isError   && <div className="form-error-visible">Gagal memuat papan peringkat.</div>}
 
       {!isLoading && !isError && data.length === 0 && (
         <div className="resource-note">Belum ada data skor.</div>
@@ -180,10 +180,10 @@ export default function Leaderboard() {
           <section className="enterprise-card lb-podium-section">
             <div className="section-title">
               <div>
-                <p className="mono-kicker text-muted">TOP SCORER</p>
+                <p className="mono-kicker text-muted">SKOR TERTINGGI</p>
                 <h2 className="lb-hall-title">
                   <Trophy size={18} strokeWidth={1.5} />
-                  Hall of Fame
+                  Terbaik
                 </h2>
               </div>
             </div>
@@ -197,7 +197,7 @@ export default function Leaderboard() {
             <div className="section-title">
               <div>
                 <p className="mono-kicker text-muted">SEMUA PESERTA</p>
-                <h2>Top {data.length} Scorer</h2>
+                <h2>{data.length} Peserta Teratas</h2>
               </div>
               <span className="lb-table-note">Berdasarkan rata-rata skor asesmen</span>
             </div>

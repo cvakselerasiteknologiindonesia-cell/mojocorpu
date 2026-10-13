@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { safe } from '../utils/sanitize.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -24,14 +25,14 @@ const EMPTY_FORM = {
 };
 const EMPTY_CATEGORY = { name: '', description: '' };
 const STATUS_TABS = [
-  ['published', 'Published'],
-  ['mine', 'My Posts'],
-  ['draft', 'Drafts'],
-  ['all', 'All'],
+  ['published', 'Terbit'],
+  ['mine', 'Tulisan Saya'],
+  ['draft', 'Draf'],
+  ['all', 'Semua'],
 ];
 
 function formatDate(date) {
-  if (!date) return 'Draft';
+  if (!date) return 'Draf';
   return new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
@@ -119,7 +120,7 @@ function ImagePopover({ editor, onClose }) {
       <div className="blog-image-popover">
         <div className="blog-popover-tabs">
           <button type="button" className={`blog-popover-tab${tab === 'upload' ? ' active' : ''}`} onClick={() => setTab('upload')}>
-            <Upload size={13} /> Upload
+            <Upload size={13} /> Unggah
           </button>
           <button type="button" className={`blog-popover-tab${tab === 'url' ? ' active' : ''}`} onClick={() => setTab('url')}>
             <Link2 size={13} /> URL
@@ -203,28 +204,28 @@ function BlogRichEditor({ value, onChange, editorKey }) {
   return (
     <div className="blog-editor-wrap">
       <div className="blog-editor-toolbar">
-        <ToolbarButton action={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} title="Bold"><strong>B</strong></ToolbarButton>
-        <ToolbarButton action={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} title="Italic"><em>I</em></ToolbarButton>
-        <ToolbarButton action={() => editor.chain().focus().toggleStrike().run()} isActive={editor.isActive('strike')} title="Strikethrough"><s>S</s></ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} title="Tebal"><strong>B</strong></ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} title="Miring"><em>I</em></ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().toggleStrike().run()} isActive={editor.isActive('strike')} title="Coret"><s>S</s></ToolbarButton>
         <ToolbarSep />
         <ToolbarButton action={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} title="Heading 2">H2</ToolbarButton>
         <ToolbarButton action={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} isActive={editor.isActive('heading', { level: 3 })} title="Heading 3">H3</ToolbarButton>
         <ToolbarSep />
-        <ToolbarButton action={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} title="Bullet list">• List</ToolbarButton>
-        <ToolbarButton action={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} title="Numbered list">1. List</ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} title="Daftar poin">• Poin</ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} title="Daftar nomor">1. Nomor</ToolbarButton>
         <ToolbarSep />
-        <ToolbarButton action={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} title="Quote">Quote</ToolbarButton>
-        <ToolbarButton action={() => editor.chain().focus().toggleCode().run()} isActive={editor.isActive('code')} title="Inline code">{'`'}</ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} title="Kutipan">Kutipan</ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().toggleCode().run()} isActive={editor.isActive('code')} title="Kode inline">{'`'}</ToolbarButton>
         <ToolbarSep />
         <span className="blog-editor-media-wrap">
-          <ToolbarButton action={() => setImageOpen((open) => !open)} isActive={imageOpen} title="Insert image">
+          <ToolbarButton action={() => setImageOpen((open) => !open)} isActive={imageOpen} title="Sisipkan gambar">
             <ImageIcon size={14} />
           </ToolbarButton>
           {imageOpen && <ImagePopover editor={editor} onClose={() => setImageOpen(false)} />}
         </span>
         <ToolbarSep />
-        <ToolbarButton action={() => editor.chain().focus().undo().run()} title="Undo">Undo</ToolbarButton>
-        <ToolbarButton action={() => editor.chain().focus().redo().run()} title="Redo">Redo</ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().undo().run()} title="Urungkan">Urungkan</ToolbarButton>
+        <ToolbarButton action={() => editor.chain().focus().redo().run()} title="Ulangi">Ulangi</ToolbarButton>
       </div>
       <div className="blog-editor-body" onClick={() => editor.chain().focus().run()}>
         <EditorContent editor={editor} />
@@ -275,12 +276,12 @@ function CategoryManager({ categories, onClose, onSaved }) {
   };
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop blog-modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-box blog-category-modal" role="dialog" aria-modal="true">
         <div className="modal-head">
           <div>
-            <p className="mono-kicker text-muted">Blog Taxonomy</p>
-            <h2>Categories</h2>
+            <p className="mono-kicker text-muted">Taksonomi Artikel</p>
+            <h2>Kategori</h2>
           </div>
           <button className="icon-action" type="button" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
         </div>
@@ -290,17 +291,17 @@ function CategoryManager({ categories, onClose, onSaved }) {
             onSubmit={(e) => { e.preventDefault(); save.mutate(); }}
           >
             <label className="event-field">
-              <span>Name</span>
-              <input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} placeholder="Learning Strategy" required />
+              <span>Nama</span>
+              <input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} placeholder="Strategi Pembelajaran" required />
             </label>
             <label className="event-field">
-              <span>Description</span>
+              <span>Deskripsi</span>
               <textarea value={form.description} onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))} rows={3} placeholder="Deskripsi singkat kategori" />
             </label>
             {save.error && <div className="form-error-visible">{save.error.response?.data?.message || 'Gagal menyimpan.'}</div>}
             <div className="modal-foot">
-              {editing && <button type="button" className="outline-button compact" onClick={reset}>Cancel Edit</button>}
-              <button className="primary-button compact" disabled={save.isPending}>{save.isPending ? 'Saving...' : editing ? 'Update Category' : 'Add Category'}</button>
+              {editing && <button type="button" className="outline-button compact" onClick={reset}>Batal Edit</button>}
+              <button className="primary-button compact" disabled={save.isPending}>{save.isPending ? 'Menyimpan...' : editing ? 'Perbarui Kategori' : 'Tambah Kategori'}</button>
             </div>
           </form>
 
@@ -311,11 +312,11 @@ function CategoryManager({ categories, onClose, onSaved }) {
                 <div>
                   <strong>{category.name}</strong>
                   <span>{category.description || category.slug}</span>
-                  <em>{category.posts_count || 0} posts</em>
+                  <em>{category.posts_count || 0} tulisan</em>
                 </div>
                 <div className="blog-category-actions">
-                  <button className="icon-action" title="Edit" onClick={() => openEdit(category)}><Edit3 size={13} /></button>
-                  <button className="icon-action danger-icon" title="Delete" onClick={() => remove.mutate(category)}><Trash2 size={13} /></button>
+                  <button className="icon-action" title="Ubah" onClick={() => openEdit(category)}><Edit3 size={13} /></button>
+                  <button className="icon-action danger-icon" title="Hapus" onClick={() => remove.mutate(category)}><Trash2 size={13} /></button>
                 </div>
               </div>
             ))}
@@ -358,7 +359,7 @@ function BlogImageField({ label, value, onChange, help }) {
       ) : (
         <button type="button" className="blog-image-empty" onClick={() => fileRef.current?.click()}>
           <ImageIcon size={18} />
-          {uploading ? 'Uploading...' : 'Upload image'}
+          {uploading ? 'Mengunggah...' : 'Unggah gambar'}
         </button>
       )}
       <input
@@ -376,29 +377,29 @@ function BlogImageField({ label, value, onChange, help }) {
 
 function BlogPreviewModal({ form, onClose }) {
   return (
-    <div className="modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop blog-modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-box blog-preview-modal" role="dialog" aria-modal="true">
         <div className="modal-head blog-editor-head">
           <div>
-            <p className="mono-kicker text-muted">Preview</p>
-            <h2>{form.title || 'Untitled post'}</h2>
+            <p className="mono-kicker text-muted">Pratinjau</p>
+            <h2>{form.title || 'Tulisan tanpa judul'}</h2>
           </div>
           <button className="icon-action" type="button" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
         </div>
         <article className="blog-public-article blog-preview-article">
           {form.featured_image && <img className="blog-public-cover" src={form.featured_image} alt="" />}
           <div className="blog-public-meta">
-            <span>{form.category || 'General'}</span>
-            <span>{form.status}</span>
+            <span>{form.category || 'Umum'}</span>
+            <span>{statusLabel(form.status)}</span>
           </div>
-          <h1>{form.title || 'Untitled post'}</h1>
+          <h1>{form.title || 'Tulisan tanpa judul'}</h1>
           {form.excerpt && <p className="blog-public-excerpt">{form.excerpt}</p>}
           {form.tags?.length > 0 && (
             <div className="blog-tag-row">
               {form.tags.map((tag) => <span key={tag}>#{tag}</span>)}
             </div>
           )}
-          <div className="blog-body" dangerouslySetInnerHTML={{ __html: form.body || '<p></p>' }} />
+          <div className="blog-body" dangerouslySetInnerHTML={{ __html: safe(form.body || '<p></p>') }} />
         </article>
       </div>
     </div>
@@ -432,10 +433,10 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
     if (!raw) return;
     try {
       const draft = JSON.parse(raw);
-      if (draft?.form && window.confirm('Ada autosave draft untuk post ini. Pulihkan draft?')) {
+      if (draft?.form && window.confirm('Ada draf otomatis untuk tulisan ini. Pulihkan draf?')) {
         setForm({ ...EMPTY_FORM, ...draft.form });
         setTagsInput(tagsToInput(draft.form.tags || []));
-        setAutosaveStatus('Draft autosave dipulihkan.');
+        setAutosaveStatus('Draf otomatis dipulihkan.');
       }
     } catch {
       window.localStorage.removeItem(draftKey);
@@ -448,7 +449,7 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
 
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(draftKey, JSON.stringify({ form, savedAt: new Date().toISOString() }));
-      setAutosaveStatus(`Autosaved ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`);
+      setAutosaveStatus(`Tersimpan otomatis ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`);
     }, 1200);
 
     return () => window.clearTimeout(timer);
@@ -460,10 +461,10 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
       : api.post('/blog-posts', form),
     onSuccess: () => {
       window.localStorage.removeItem(draftKey);
-      toast.success(post ? 'Post diperbarui.' : 'Post dibuat.');
+      toast.success(post ? 'Tulisan diperbarui.' : 'Tulisan dibuat.');
       onSaved();
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Gagal menyimpan blog post.'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Gagal menyimpan tulisan.'),
   });
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
@@ -475,18 +476,18 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
   const seoDescriptionLength = form.seo_description.length;
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop blog-modal-backdrop" role="presentation" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-box blog-editor-modal" role="dialog" aria-modal="true">
         <div className="beh-topbar">
           <button className="beh-close" type="button" onClick={onClose} aria-label="Tutup"><X size={16} /></button>
-          <span className="beh-title">{form.title || (post ? 'Edit Post' : 'New Post')}</span>
+          <span className="beh-title">{form.title || (post ? 'Edit Tulisan' : 'Tulisan Baru')}</span>
           <span className="beh-divider" />
           {autosaveStatus && <span className="beh-autosave">{autosaveStatus}</span>}
           <button type="button" className="beh-action-btn" onClick={() => setPreviewOpen(true)}>
-            <Eye size={14} /> Preview
+            <Eye size={14} /> Pratinjau
           </button>
           <button form="blog-post-form" type="submit" className="beh-save-btn" disabled={save.isPending}>
-            {save.isPending ? <><Loader2 size={14} className="beh-spin" /> Saving...</> : <><Save size={14} /> Save Post</>}
+            {save.isPending ? <><Loader2 size={14} className="beh-spin" /> Menyimpan...</> : <><Save size={14} /> Simpan Tulisan</>}
           </button>
         </div>
         <form
@@ -508,15 +509,15 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                         slug: current.slug ? current.slug : slugify(title),
                       }));
                     }}
-                    placeholder="Post title"
+                    placeholder="Judul tulisan"
                     required
                   />
                 </div>
                 <div className="blog-slug-row">
                   <span>/artikel/</span>
-                  <input value={form.slug} onChange={(e) => update('slug', slugify(e.target.value))} placeholder="post-url-slug" />
+                  <input value={form.slug} onChange={(e) => update('slug', slugify(e.target.value))} placeholder="slug-url-artikel" />
                   {form.slug && (
-                    <a href={`/artikel/${form.slug}`} target="_blank" rel="noreferrer" aria-label="Open public URL">
+                    <a href={`/artikel/${form.slug}`} target="_blank" rel="noreferrer" aria-label="Buka URL publik">
                       <ExternalLink size={14} />
                     </a>
                   )}
@@ -524,17 +525,17 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
               </div>
 
               <div className="blog-compose-section-head">
-                <span>Article Body</span>
-                <em>{wordCount} words</em>
+                <span>Isi Artikel</span>
+                <em>{wordCount} kata</em>
               </div>
               <BlogRichEditor value={form.body} onChange={(value) => update('body', value)} editorKey={post?.uuid || 'new-blog-post'} />
             </div>
 
             <aside className="blog-compose-side">
-              <div className="blog-side-tabs" role="tablist" aria-label="Blog settings">
+              <div className="blog-side-tabs" role="tablist" aria-label="Pengaturan artikel">
                 {[
-                  ['publish', 'Publish'],
-                  ['content', 'Content'],
+                  ['publish', 'Publikasi'],
+                  ['content', 'Konten'],
                   ['seo', 'SEO'],
                 ].map(([id, label]) => (
                   <button
@@ -554,7 +555,7 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                     <section>
                       <span className="blog-side-label">Status</span>
                       <div className="beh-status-row">
-                        {[['draft', 'Draft'], ['published', 'Published']].map(([s, label]) => (
+                        {[['draft', 'Draf'], ['published', 'Terbit']].map(([s, label]) => (
                           <button
                             type="button"
                             key={s}
@@ -567,16 +568,16 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                       </div>
                       {form.slug && (
                         <a className="blog-public-link" href={`/artikel/${form.slug}`} target="_blank" rel="noreferrer">
-                          <ExternalLink size={13} /> Open public URL
+                          <ExternalLink size={13} /> Buka URL publik
                         </a>
                       )}
                     </section>
 
                     <section>
-                      <span className="blog-side-label">Autosave</span>
+                      <span className="blog-side-label">Simpan Otomatis</span>
                       <div className="blog-status-card">
-                        <strong>{autosaveStatus || 'Waiting for changes'}</strong>
-                        <span>Drafts are stored locally in this browser until the post is saved.</span>
+                        <strong>{autosaveStatus || 'Menunggu perubahan'}</strong>
+                        <span>Draf disimpan sementara di browser ini sampai tulisan disimpan.</span>
                       </div>
                     </section>
                   </>
@@ -585,9 +586,9 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                 {sidePanel === 'content' && (
                   <>
                     <section>
-                      <span className="blog-side-label">Featured Image</span>
+                      <span className="blog-side-label">Gambar Utama</span>
                       <BlogImageField
-                        label="Cover"
+                        label="Sampul"
                         value={form.featured_image}
                         onChange={(value) => {
                           setForm((current) => ({
@@ -596,14 +597,14 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                             seo_image: current.seo_image || value,
                           }));
                         }}
-                        help="Dipakai untuk kartu frontpage dan halaman artikel."
+                        help="Dipakai untuk kartu beranda dan halaman artikel."
                       />
                     </section>
 
                     <section>
-                      <span className="blog-side-label">Classification</span>
+                      <span className="blog-side-label">Klasifikasi</span>
                       <label className="event-field">
-                        <span>Category</span>
+                        <span>Kategori</span>
                         <select
                           value={form.blog_category_id}
                           onChange={(e) => {
@@ -615,15 +616,15 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                             }));
                           }}
                         >
-                          <option value="">General</option>
+                          <option value="">Umum</option>
                           {categories.map((category) => (
                             <option key={category.uuid} value={category.id}>{category.name}</option>
                           ))}
                         </select>
                       </label>
                       <label className="event-field">
-                        <span>Tags</span>
-                        <input value={tagsInput} onChange={(e) => updateTags(e.target.value)} placeholder="leadership, asn, digital" />
+                        <span>Tag</span>
+                        <input value={tagsInput} onChange={(e) => updateTags(e.target.value)} placeholder="kepemimpinan, asn, digital" />
                       </label>
                       {form.tags.length > 0 && (
                         <div className="blog-tag-row">
@@ -633,9 +634,9 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                     </section>
 
                     <section>
-                      <span className="blog-side-label">Summary</span>
+                      <span className="blog-side-label">Ringkasan</span>
                       <label className="event-field">
-                        <span>Excerpt</span>
+                        <span>Kutipan Ringkas</span>
                         <textarea value={form.excerpt} onChange={(e) => update('excerpt', e.target.value)} rows={8} placeholder="Ringkasan singkat artikel" />
                       </label>
                     </section>
@@ -646,11 +647,11 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                   <section>
                     <span className="blog-side-label">SEO</span>
                     <label className="event-field">
-                      <span>Meta title</span>
-                      <input value={form.seo_title} onChange={(e) => update('seo_title', e.target.value)} placeholder={form.title || 'SEO title'} maxLength={180} />
+                      <span>Judul meta</span>
+                      <input value={form.seo_title} onChange={(e) => update('seo_title', e.target.value)} placeholder={form.title || 'Judul SEO'} maxLength={180} />
                     </label>
                     <label className="event-field">
-                      <span>Meta description</span>
+                      <span>Deskripsi meta</span>
                       <textarea value={form.seo_description} onChange={(e) => update('seo_description', e.target.value)} rows={5} placeholder="Deskripsi untuk mesin pencari dan share preview" maxLength={320} />
                     </label>
                     <div className="blog-field-meter">
@@ -658,14 +659,14 @@ function BlogEditor({ post, categories, onClose, onSaved }) {
                       <i style={{ width: `${Math.min(100, (seoDescriptionLength / 320) * 100)}%` }} />
                     </div>
                     <label className="event-field">
-                      <span>Canonical URL</span>
+                      <span>URL kanonis</span>
                       <input value={form.seo_canonical_url} onChange={(e) => update('seo_canonical_url', e.target.value)} placeholder="https://..." />
                     </label>
                     <BlogImageField
-                      label="SEO image"
+                      label="Gambar SEO"
                       value={form.seo_image}
                       onChange={(value) => update('seo_image', value)}
-                      help="Opsional. Default bisa sama dengan featured image."
+                      help="Opsional. Default bisa sama dengan gambar utama."
                     />
                   </section>
                 )}
@@ -702,6 +703,13 @@ function BlogListSkeleton() {
   );
 }
 
+function statusLabel(status) {
+  return {
+    draft: 'Draf',
+    published: 'Terbit',
+  }[status] || status;
+}
+
 export default function Blog({ session }) {
   const queryClient = useQueryClient();
   const writable = canWrite(session);
@@ -735,25 +743,25 @@ export default function Blog({ session }) {
     onSuccess: () => {
       setSelected(null);
       invalidate();
-      toast.success('Post dihapus.');
+      toast.success('Tulisan dihapus.');
     },
-    onError: () => toast.error('Gagal menghapus post.'),
+    onError: () => toast.error('Gagal menghapus tulisan.'),
   });
 
   return (
     <div className="page-stack blog-page">
       <div className="page-head blog-head">
         <div>
-          <p className="mono-kicker text-muted">Knowledge Sharing</p>
-          <h1>Blog</h1>
+          <p className="mono-kicker text-muted">Berbagi Pengetahuan</p>
+          <h1>Artikel</h1>
         </div>
         {writable && (
           <div className="blog-head-actions">
             <button className="outline-button compact" onClick={() => setCategoryManagerOpen(true)}>
-              <FolderPlus size={14} /> Categories
+              <FolderPlus size={14} /> Kategori
             </button>
             <button className="primary-button compact" onClick={() => setEditing(null)}>
-              <Plus size={14} /> New Post
+              <Plus size={14} /> Tulisan Baru
             </button>
           </div>
         )}
@@ -762,7 +770,7 @@ export default function Blog({ session }) {
       <div className="blog-toolbar">
         <div className="blog-search">
           <Search size={15} />
-          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search posts..." />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Cari tulisan..." />
         </div>
         <div className="blog-tabs">
           {tabs.map(([id, label]) => (
@@ -772,7 +780,7 @@ export default function Blog({ session }) {
           ))}
         </div>
         <select className="blog-category-filter" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
-          <option value="">All Categories</option>
+          <option value="">Semua Kategori</option>
           {categories.map((category) => (
             <option key={category.uuid} value={category.slug}>{category.name}</option>
           ))}
@@ -785,7 +793,7 @@ export default function Blog({ session }) {
           {!isLoading && posts.length === 0 && (
             <div className="material-empty">
               <BookOpen size={30} />
-              <p>Belum ada blog post.</p>
+              <p>Belum ada tulisan.</p>
               <span>Artikel yang dipublikasikan akan tampil di sini.</span>
             </div>
           )}
@@ -794,12 +802,12 @@ export default function Blog({ session }) {
               <span className="blog-row-icon"><FileText size={16} /></span>
               <span className="blog-row-main">
                 <strong>{post.title}</strong>
-                <em>{post.category || 'General'} · {post.reading_minutes} min read · {formatDate(post.published_at)}</em>
+                <em>{post.category || 'Umum'} · {post.reading_minutes} menit baca · {formatDate(post.published_at)}</em>
               </span>
-              <span className={`status-badge ${post.status === 'published' ? 'active' : 'scheduled'}`}>{post.status}</span>
+              <span className={`status-badge ${post.status === 'published' ? 'active' : 'scheduled'}`}>{statusLabel(post.status)}</span>
               {writable && (
                 <span className="blog-row-actions" onClick={(e) => e.stopPropagation()}>
-                  <button className="icon-action" title="Edit" onClick={() => setEditing(post)}><Edit3 size={13} /></button>
+                  <button className="icon-action" title="Ubah" onClick={() => setEditing(post)}><Edit3 size={13} /></button>
                   <button className="icon-action danger-icon" title="Hapus" onClick={() => { if (window.confirm(`Hapus "${post.title}"?`)) remove.mutate(post); }}><Trash2 size={13} /></button>
                 </span>
               )}
@@ -807,42 +815,42 @@ export default function Blog({ session }) {
           ))}
           {data?.last_page > 1 && (
             <div className="kms-pagination">
-              <button className="outline-button compact" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Prev</button>
+              <button className="outline-button compact" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Sebelumnya</button>
               <span className="kms-page-info">Hal. {page} / {data.last_page}</span>
-              <button className="outline-button compact" disabled={page >= data.last_page} onClick={() => setPage((p) => p + 1)}>Next</button>
+              <button className="outline-button compact" disabled={page >= data.last_page} onClick={() => setPage((p) => p + 1)}>Berikutnya</button>
             </div>
           )}
-          {isFetching && !isLoading && <div className="resource-note">Refreshing...</div>}
+          {isFetching && !isLoading && <div className="resource-note">Memperbarui...</div>}
         </section>
 
         <article className="blog-reader">
           {!currentPost && (
             <div className="fm-no-event">
               <BookOpen size={36} />
-              <p>Pilih blog post untuk membaca.</p>
+              <p>Pilih tulisan untuk membaca.</p>
             </div>
           )}
           {currentPost && (
             <>
               <div className="blog-reader-top">
                 <div>
-                  <p className="mono-kicker text-muted">{currentPost.category || 'General'}</p>
+                  <p className="mono-kicker text-muted">{currentPost.category || 'Umum'}</p>
                   <h2>{currentPost.title}</h2>
                 </div>
                 {writable && (
                   <div className="blog-reader-actions">
-                    <button className="icon-action" title="Edit" onClick={() => setEditing(currentPost)}><Edit3 size={14} /></button>
+                    <button className="icon-action" title="Ubah" onClick={() => setEditing(currentPost)}><Edit3 size={14} /></button>
                     <button className="icon-action danger-icon" title="Hapus" onClick={() => { if (window.confirm(`Hapus "${currentPost.title}"?`)) remove.mutate(currentPost); }}><Trash2 size={14} /></button>
                   </div>
                 )}
               </div>
               <div className="blog-reader-meta">
-                <span>{currentPost.author?.name || 'CorpU Author'}</span>
+                <span>{currentPost.author?.name || 'Penulis CorpU'}</span>
                 <span><Calendar size={13} /> {formatDate(currentPost.published_at || currentPost.created_at)}</span>
-                <span>{currentPost.reading_minutes} min read</span>
+                <span>{currentPost.reading_minutes} menit baca</span>
                 {currentPost.slug && (
                   <a href={`/artikel/${currentPost.slug}`} target="_blank" rel="noreferrer">
-                    <ExternalLink size={13} /> Public
+                    <ExternalLink size={13} /> Publik
                   </a>
                 )}
               </div>
@@ -853,7 +861,7 @@ export default function Blog({ session }) {
                   {currentPost.tags.map((tag) => <span key={tag}>#{tag}</span>)}
                 </div>
               )}
-              <div className="blog-body" dangerouslySetInnerHTML={{ __html: currentPost.body }} />
+              <div className="blog-body" dangerouslySetInnerHTML={{ __html: safe(currentPost.body) }} />
               {visibleCategoryNames.length > 0 && (
                 <div className="blog-category-strip">
                   {visibleCategoryNames.slice(0, 5).map((category) => <span key={category}>{category}</span>)}

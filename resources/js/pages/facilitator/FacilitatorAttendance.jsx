@@ -7,9 +7,9 @@ import {
   Search,
   Users,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import api from '../../api.js';
+import { loadXlsx } from '../../utils/xlsx.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,8 @@ function AttendanceToggle({ checked, checkedAt, onMark, onUnmark, isPending }) {
 
 // ── Export to Excel ───────────────────────────────────────────────────────────
 
-function exportAttendance(eventTitle, participants, sessions) {
+async function exportAttendance(eventTitle, participants, sessions) {
+  const XLSX = await loadXlsx();
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: event-level attendance

@@ -11,9 +11,9 @@ const ICON_MAP = {
 };
 
 const TIER_META = {
-  bronze:   { label: 'Bronze',   accent: '#d97706',      symbol: '·' },
-  silver:   { label: 'Silver',   accent: 'var(--fg-3)',  symbol: '◆' },
-  gold:     { label: 'Gold',     accent: 'var(--gold)',  symbol: '✦' },
+  bronze:   { label: 'Perunggu', accent: '#d97706',      symbol: '·' },
+  silver:   { label: 'Perak',    accent: 'var(--fg-3)',  symbol: '◆' },
+  gold:     { label: 'Emas',     accent: 'var(--gold)',  symbol: '✦' },
   platinum: { label: 'Platinum', accent: 'var(--grape)', symbol: '★' },
 };
 
@@ -24,7 +24,7 @@ const CRITERIA_LABEL = {
   score_perfect:    ()  => 'Raih nilai sempurna 100',
   streak_days:      (v) => `${v} hari berturut-turut`,
   tokens_earned:    (v) => `Kumpulkan ${v.toLocaleString()} token`,
-  store_purchase:   (v) => `Beli ${v} item di Store`,
+  store_purchase:   (v) => `Beli ${v} item di toko`,
 };
 
 const FILTER_TIERS = ['all', 'platinum', 'gold', 'silver', 'bronze'];
@@ -155,7 +155,7 @@ function StreakPanel({ streak }) {
           </div>
           <div>
             <p className="mono-kicker text-muted" style={{ margin: 0 }}>Konsistensi</p>
-            <h2 style={{ margin: 0 }}>Streak Belajar</h2>
+            <h2 style={{ margin: 0 }}>Runtun Belajar</h2>
           </div>
         </div>
         {streak.current_streak > 0 && (
@@ -167,7 +167,7 @@ function StreakPanel({ streak }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div style={{ border: '1px solid var(--border)', padding: 14 }}>
-          <span style={{ display: 'block', fontSize: 11, color: 'var(--fg-3)' }}>Streak Aktif</span>
+          <span style={{ display: 'block', fontSize: 11, color: 'var(--fg-3)' }}>Runtun Aktif</span>
           <strong style={{ display: 'block', fontSize: 32, lineHeight: 1.1, color: 'var(--gold)', marginTop: 2 }}>
             {streak.current_streak}
           </strong>
@@ -283,7 +283,7 @@ function BadgeLeaderboard() {
   });
 
   if (isLoading) return <BadgeLeaderboardSkeleton />;
-  if (!data?.length) return <div className="resource-note">Belum ada data leaderboard.</div>;
+  if (!data?.length) return <div className="resource-note">Belum ada data papan peringkat.</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)' }}>
@@ -369,9 +369,9 @@ export default function Achievements() {
       <div className="page-head">
         <div>
           <p className="mono-kicker text-muted">Gamifikasi</p>
-          <h1>Achievement</h1>
+          <h1>Pencapaian</h1>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-3)' }}>
-            Badge, pencapaian, dan streak belajar Anda.
+            Lencana, pencapaian, dan runtun belajar Anda.
           </p>
         </div>
       </div>
@@ -392,7 +392,7 @@ export default function Achievements() {
             <strong style={{ display: 'block', fontSize: 22, lineHeight: 1.1, color: 'var(--fg)' }}>
               {earnedCount}<span style={{ fontSize: 13, color: 'var(--fg-3)', fontWeight: 400 }}> / {totalCount}</span>
             </strong>
-            <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)' }}>Badge Diraih</span>
+            <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)' }}>Lencana Diraih</span>
           </div>
         </div>
 
@@ -410,7 +410,7 @@ export default function Achievements() {
             <strong style={{ display: 'block', fontSize: 22, lineHeight: 1.1, color: 'var(--fg)' }}>
               {streak?.current_streak ?? 0}
             </strong>
-            <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)' }}>Hari Streak</span>
+            <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)' }}>Hari Runtun</span>
           </div>
         </div>
 
@@ -434,8 +434,8 @@ export default function Achievements() {
 
       {/* ── Tabs ────────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: -4 }}>
-        <TabBtn label="Badge Saya"         value="my-badges"   active={tab} onClick={setTab} icon={Trophy} />
-        <TabBtn label="Leaderboard Badge"  value="leaderboard" active={tab} onClick={setTab} icon={Medal}  />
+        <TabBtn label="Lencana Saya"       value="my-badges"   active={tab} onClick={setTab} icon={Trophy} />
+        <TabBtn label="Peringkat Lencana"  value="leaderboard" active={tab} onClick={setTab} icon={Medal}  />
       </div>
 
       {/* ── My badges tab ───────────────────────────────────────────────────── */}
@@ -453,14 +453,14 @@ export default function Achievements() {
                 <div className="section-title" style={{ marginBottom: 14 }}>
                   <div>
                     <p className="mono-kicker text-muted" style={{ margin: 0 }}>Koleksi</p>
-                    <h2 style={{ margin: 0 }}>Progress Badge</h2>
+                    <h2 style={{ margin: 0 }}>Progres Lencana</h2>
                   </div>
                   <span className="badge-active">{pct}%</span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
                   <strong style={{ fontSize: 34, lineHeight: 1, color: 'var(--grape)' }}>{earnedCount}</strong>
-                  <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>dari {totalCount} badge</span>
+                  <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>dari {totalCount} lencana</span>
                 </div>
 
                 <div style={{ height: 10, background: 'var(--surface)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 16 }}>
@@ -488,7 +488,7 @@ export default function Achievements() {
               <div className="section-title" style={{ marginBottom: 14 }}>
                 <div>
                   <p className="mono-kicker text-muted" style={{ margin: 0 }}>Koleksi</p>
-                  <h2 style={{ margin: 0 }}>Badge</h2>
+                  <h2 style={{ margin: 0 }}>Lencana</h2>
                 </div>
                 <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{filtered.length} tampil</span>
               </div>
@@ -520,7 +520,7 @@ export default function Achievements() {
               </div>
 
               {filtered.length === 0 ? (
-                <div className="resource-note">Tidak ada badge dengan filter ini.</div>
+                <div className="resource-note">Tidak ada lencana dengan filter ini.</div>
               ) : (
                 <div style={{
                   display: 'grid',
@@ -540,8 +540,8 @@ export default function Achievements() {
         <section className="enterprise-card" style={{ padding: 20 }}>
           <div className="section-title" style={{ marginBottom: 16 }}>
             <div>
-              <p className="mono-kicker text-muted" style={{ margin: 0 }}>Ranking</p>
-              <h2 style={{ margin: 0 }}>Leaderboard Badge</h2>
+              <p className="mono-kicker text-muted" style={{ margin: 0 }}>Peringkat</p>
+              <h2 style={{ margin: 0 }}>Peringkat Lencana</h2>
             </div>
           </div>
           <BadgeLeaderboard />

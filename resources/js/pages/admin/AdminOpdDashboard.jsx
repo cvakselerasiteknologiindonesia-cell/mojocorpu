@@ -13,23 +13,32 @@ function pct(a, b) {
 }
 
 const STATUS_COLOR = {
-  submitted: { bg: '#fffbeb', color: '#92400e' },
-  draft:     { bg: '#f9fafb', color: '#6b7280' },
-  approved:  { bg: '#f0fdf4', color: '#16a34a' },
-  rejected:  { bg: '#fef2f2', color: '#dc2626' },
-  ongoing:   { bg: '#eff6ff', color: '#2563eb' },
-  scheduled: { bg: '#f5f3ff', color: '#7c3aed' },
-  completed: { bg: '#f0fdf4', color: '#16a34a' },
+  submitted: { bg: 'color-mix(in srgb, var(--gold) 15%, var(--bg))',    color: 'var(--crimson)' },
+  draft:     { bg: 'var(--surface)',                                      color: 'var(--fg-3)' },
+  approved:  { bg: 'color-mix(in srgb, var(--emerald) 12%, var(--bg))', color: 'var(--emerald)' },
+  rejected:  { bg: 'color-mix(in srgb, var(--crimson) 12%, var(--bg))', color: 'var(--crimson)' },
+  ongoing:   { bg: 'color-mix(in srgb, var(--sky) 12%, var(--bg))',     color: 'var(--sky)' },
+  scheduled: { bg: 'color-mix(in srgb, var(--grape) 10%, var(--bg))',   color: 'var(--grape)' },
+  completed: { bg: 'color-mix(in srgb, var(--emerald) 12%, var(--bg))', color: 'var(--emerald)' },
 };
 
 function Badge({ status }) {
-  const s = STATUS_COLOR[status] ?? { bg: '#f3f4f6', color: '#6b7280' };
+  const s = STATUS_COLOR[status] ?? { bg: 'var(--surface)', color: 'var(--fg-3)' };
+  const label = {
+    submitted: 'diajukan',
+    draft: 'draf',
+    approved: 'disetujui',
+    rejected: 'ditolak',
+    ongoing: 'berjalan',
+    scheduled: 'terjadwal',
+    completed: 'selesai',
+  }[status] ?? status;
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, padding: '2px 8px',
       background: s.bg, color: s.color, borderRadius: 4,
       textTransform: 'capitalize', flexShrink: 0,
-    }}>{status}</span>
+    }}>{label}</span>
   );
 }
 
@@ -74,19 +83,19 @@ export default function AdminOpdDashboard({ session }) {
           loading={isLoading}
         />
         <KpiCard
-          label="Proposals"
+          label="Usulan"
           value={isLoading ? '…' : d?.proposals?.total ?? 0}
           note={isLoading ? '' : `${d?.proposals?.approved ?? 0} disetujui`}
           loading={isLoading}
         />
         <KpiCard
-          label="Training Events"
+          label="Event Pelatihan"
           value={isLoading ? '…' : d?.events?.total ?? 0}
           note={isLoading ? '' : `${d?.events?.ongoing ?? 0} berjalan`}
           loading={isLoading}
         />
         <KpiCard
-          label="KMS Assets"
+          label="Aset KMS"
           value={isLoading ? '…' : d?.kms?.total ?? 0}
           note={isLoading ? '' : `${d?.kms?.approved ?? 0} disetujui`}
           loading={isLoading}
@@ -103,16 +112,16 @@ export default function AdminOpdDashboard({ session }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <BookOpen size={16} color="var(--sky)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Pipeline</p>
-                    <h2 style={{ margin: 0 }}>Proposal</h2>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Alur Usulan</p>
+                    <h2 style={{ margin: 0 }}>Usulan</h2>
                   </div>
                 </div>
               </div>
               {[
-                { label: 'Draft',     value: d.proposals.draft,     total: d.proposals.total, color: '#9ca3af' },
-                { label: 'Submitted', value: d.proposals.submitted, total: d.proposals.total, color: '#f59e0b' },
-                { label: 'Approved',  value: d.proposals.approved,  total: d.proposals.total, color: '#22c55e' },
-                { label: 'Rejected',  value: d.proposals.rejected,  total: d.proposals.total, color: '#ef4444' },
+                { label: 'Draf',      value: d.proposals.draft,     total: d.proposals.total, color: 'var(--fg-3)' },
+                { label: 'Diajukan',  value: d.proposals.submitted, total: d.proposals.total, color: 'var(--gold)' },
+                { label: 'Disetujui', value: d.proposals.approved,  total: d.proposals.total, color: 'var(--emerald)' },
+                { label: 'Ditolak',   value: d.proposals.rejected,  total: d.proposals.total, color: 'var(--crimson)' },
               ].map(({ label, value, total, color }) => (
                 <div key={label} style={{ marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
@@ -130,17 +139,17 @@ export default function AdminOpdDashboard({ session }) {
             <section className="enterprise-card" style={{ padding: 16 }}>
               <div className="section-title" style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CalendarDays size={16} color="var(--emerald, #16a34a)" />
+                  <CalendarDays size={16} color="var(--emerald)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Training</p>
-                    <h2 style={{ margin: 0 }}>Events</h2>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Pelatihan</p>
+                    <h2 style={{ margin: 0 }}>Event</h2>
                   </div>
                 </div>
               </div>
               {[
-                { label: 'Terjadwal', value: d.events.scheduled, total: d.events.total, color: '#7c3aed' },
-                { label: 'Berjalan',  value: d.events.ongoing,   total: d.events.total, color: '#2563eb' },
-                { label: 'Selesai',   value: d.events.completed, total: d.events.total, color: '#22c55e' },
+                { label: 'Terjadwal', value: d.events.scheduled, total: d.events.total, color: 'var(--grape)' },
+                { label: 'Berjalan',  value: d.events.ongoing,   total: d.events.total, color: 'var(--sky)' },
+                { label: 'Selesai',   value: d.events.completed, total: d.events.total, color: 'var(--emerald)' },
               ].map(({ label, value, total, color }) => (
                 <div key={label} style={{ marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
@@ -158,25 +167,25 @@ export default function AdminOpdDashboard({ session }) {
             <section className="enterprise-card" style={{ padding: 16 }}>
               <div className="section-title" style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <GraduationCap size={16} color="#16a34a" />
+                  <GraduationCap size={16} color="var(--emerald)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Progress</p>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Progres</p>
                     <h2 style={{ margin: 0 }}>Peserta</h2>
                   </div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
-                <strong style={{ fontSize: 32, lineHeight: 1, color: '#16a34a' }}>{d.participants.rate}%</strong>
+                <strong style={{ fontSize: 32, lineHeight: 1, color: 'var(--emerald)' }}>{d.participants.rate}%</strong>
                 <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>tingkat kelulusan</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: `${Math.max(d.participants.rate, 2)}fr ${Math.max(100 - d.participants.rate, 2)}fr`, height: 20, border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 10 }}>
-                <span style={{ background: '#22c55e' }} />
+                <span style={{ background: 'var(--emerald)' }} />
                 <span style={{ background: 'var(--surface)' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, textAlign: 'center' }}>
                 {[
                   { label: 'Total', value: d.participants.total, color: 'var(--fg)' },
-                  { label: 'Lulus',  value: d.participants.completed, color: '#16a34a' },
+                  { label: 'Lulus',  value: d.participants.completed, color: 'var(--emerald)' },
                   { label: 'Belum',  value: Math.max(d.participants.total - d.participants.completed, 0), color: 'var(--fg-2)' },
                 ].map(({ label, value, color }) => (
                   <div key={label} style={{ border: '1px solid var(--border)', padding: '6px 8px' }}>
@@ -195,11 +204,11 @@ export default function AdminOpdDashboard({ session }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <BookOpen size={15} color="var(--sky)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Action Queue</p>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Antrean Tindak Lanjut</p>
                     <h2 style={{ margin: 0 }}>Proposal Terbaru</h2>
                   </div>
                 </div>
-                <NavLink to="/proposals" style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600, textDecoration: 'none' }}>Semua</NavLink>
+                <NavLink to="/proposals" style={{ fontSize: 12, color: 'var(--grape)', fontWeight: 600, textDecoration: 'none' }}>Semua</NavLink>
               </div>
               {d.proposals.recent?.length > 0 ? (
                 <div>
@@ -225,13 +234,13 @@ export default function AdminOpdDashboard({ session }) {
             <section className="enterprise-card" style={{ padding: 16 }}>
               <div className="section-title">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CalendarDays size={15} color="#16a34a" />
+                  <CalendarDays size={15} color="var(--emerald)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Schedule</p>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Jadwal</p>
                     <h2 style={{ margin: 0 }}>Event Mendatang</h2>
                   </div>
                 </div>
-                <NavLink to="/events" style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600, textDecoration: 'none' }}>Semua</NavLink>
+                <NavLink to="/events" style={{ fontSize: 12, color: 'var(--grape)', fontWeight: 600, textDecoration: 'none' }}>Semua</NavLink>
               </div>
               {d.events.upcoming?.length > 0 ? (
                 <div>

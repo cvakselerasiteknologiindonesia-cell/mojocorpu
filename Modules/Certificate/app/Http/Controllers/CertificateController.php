@@ -3,8 +3,11 @@
 namespace Modules\Certificate\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Support\ApiResponse;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -24,13 +27,32 @@ class CertificateController extends Controller
         try {
             $query = Certificate::query()
                 ->with('event:id,title,start_date,end_date')
+                ->with('learningPath:id,uuid,title')
                 ->latest();
 
             if (! $request->user()->hasAnyRole(['super-admin', 'admin-opd'])) {
                 $query->where('user_id', $request->user()->id);
             }
 
-            return ApiResponse::success('Data retrieved', $query->paginate((int) $request->integer('per_page', 15)));
+            $certificates = $query->paginate((int) $request->integer('per_page', 15));
+            $certificates->through(function (Certificate $certificate) {
+                $data = $certificate->toArray();
+
+                if (! $certificate->event && $certificate->learningPath) {
+                    $data['event'] = [
+                        'title' => $certificate->learningPath->title,
+                        'start_date' => null,
+                        'end_date' => null,
+                    ];
+                    $data['source'] = 'learning_path';
+                } else {
+                    $data['source'] = 'training_event';
+                }
+
+                return $data;
+            });
+
+            return ApiResponse::success('Data retrieved', $certificates);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
@@ -47,7 +69,10 @@ class CertificateController extends Controller
                     'user:id,name,nip,opd_name,organization_unit_name',
                     'event:id,uuid,title,start_date,end_date',
                     'event.sessions:id,training_event_id,title,order,duration_minutes,status',
-                    'template:id,name,paper_size,orientation,background_color,layout',
+                    'event.materials:id,training_event_id,title,type,description,duration_minutes,order',
+                    'learningPath:id,uuid,title,description,estimated_hours',
+                    'learningPath.steps:id,learning_path_id,title,description,type,is_required,estimated_minutes,order',
+                    'template:id,name,paper_size,orientation,background_color,signature_name,signature_title,layout',
                 ]);
 
             if (! $request->user()->hasAnyRole(['super-admin', 'admin-opd'])) {
@@ -56,42 +81,84 @@ class CertificateController extends Controller
 
             $cert = $query->firstOrFail();
 
+            $score = $cert->training_event_id
+                ? $this->userEventScore($cert->training_event_id, $cert->user_id)
+                : null;
+
+            $pathSteps = $cert->learningPath?->steps
+                ?->map(fn ($step) => [
+                    'order' => $step->order,
+                    'title' => $step->title,
+                    'type' => $step->type,
+                    'description' => $step->description,
+                    'is_required' => $step->is_required,
+                    'duration_minutes' => $step->estimated_minutes,
+                    'learning_hours' => $step->estimated_minutes ? (int) ceil($step->estimated_minutes / 45) : 0,
+                ])
+                ->values()
+                ->all() ?? [];
+
+            $sourceTitle = $cert->event?->title ?? $cert->learningPath?->title;
+
             return ApiResponse::success('OK', [
-                'uuid'               => $cert->uuid,
+                'uuid' => $cert->uuid,
+                'source' => $cert->learning_path_id ? 'learning_path' : 'training_event',
                 'certificate_number' => $cert->certificate_number,
-                'issued_at'          => $cert->issued_at?->toDateString(),
-                'issued_date'        => $cert->issued_at?->locale('id')->translatedFormat('d F Y'),
+                'issued_at' => $cert->issued_at?->toDateString(),
+                'issued_date' => $cert->issued_at?->locale('id')->translatedFormat('d F Y'),
                 'verification_token' => $cert->verification_token,
-                'verification_url'   => $cert->verification_token ? url('/api/certificates/verify/' . $cert->verification_token) : null,
+                'verification_url' => $cert->verification_token ? url('/api/certificates/verify/'.$cert->verification_token) : null,
                 'participant' => [
-                    'name'                   => $cert->user?->name,
-                    'nip'                    => $cert->user?->nip,
-                    'opd_name'               => $cert->user?->opd_name,
+                    'name' => $cert->user?->name,
+                    'nip' => $cert->user?->nip,
+                    'opd_name' => $cert->user?->opd_name,
                     'organization_unit_name' => $cert->user?->organization_unit_name,
+                    'final_score' => $score,
+                    'predicate' => $this->scoreToPredikat($score),
                 ],
                 'event' => [
-                    'title'      => $cert->event?->title,
+                    'title' => $sourceTitle,
                     'start_date' => $cert->event?->start_date?->toDateString(),
-                    'end_date'   => $cert->event?->end_date?->toDateString(),
-                    'sessions'   => $cert->event?->sessions
+                    'end_date' => $cert->event?->end_date?->toDateString(),
+                    'sessions' => $cert->event?->sessions
                         ?->sortBy('order')
                         ->map(fn ($s) => [
-                            'order'            => $s->order,
-                            'title'            => $s->title,
+                            'order' => $s->order,
+                            'title' => $s->title,
                             'duration_minutes' => $s->duration_minutes,
-                            'status'           => $s->status,
+                            'status' => $s->status,
                         ])
                         ->values()
                         ->all() ?? [],
+                    'materials' => $cert->event?->materials
+                        ?->map(fn ($material) => [
+                            'order' => $material->order,
+                            'title' => $material->title,
+                            'type' => $material->type,
+                            'description' => $material->description,
+                            'duration_minutes' => $material->duration_minutes,
+                            'learning_hours' => $material->duration_minutes ? (int) ceil($material->duration_minutes / 45) : 0,
+                        ])
+                        ->values()
+                        ->all() ?? $pathSteps,
                 ],
+                'learning_path' => $cert->learningPath ? [
+                    'uuid' => $cert->learningPath->uuid,
+                    'title' => $cert->learningPath->title,
+                    'description' => $cert->learningPath->description,
+                    'estimated_hours' => $cert->learningPath->estimated_hours,
+                    'steps' => $pathSteps,
+                ] : null,
                 'template' => $cert->template ? [
-                    'paper_size'       => $cert->template->paper_size,
-                    'orientation'      => $cert->template->orientation,
+                    'paper_size' => $cert->template->paper_size,
+                    'orientation' => $cert->template->orientation,
                     'background_color' => $cert->template->background_color,
-                    'layout'           => $cert->template->layout,
+                    'signature_name' => $cert->template->signature_name,
+                    'signature_title' => $cert->template->signature_title,
+                    'layout' => $cert->template->layout,
                 ] : null,
             ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (ModelNotFoundException $e) {
             return ApiResponse::error('Sertifikat tidak ditemukan.', 404);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
@@ -124,6 +191,27 @@ class CertificateController extends Controller
 
             return ApiResponse::error();
         }
+    }
+
+    public function officials(Request $request)
+    {
+        $officials = User::query()
+            ->where('is_active', true)
+            ->whereNotNull('position_name')
+            ->where('position_name', '!=', '')
+            ->orderByRaw("CASE WHEN LOWER(position_name) = 'kepala bkpsdm' THEN 0 ELSE 1 END")
+            ->orderBy('name')
+            ->get(['id', 'name', 'nip', 'position_name', 'opd_name'])
+            ->map(fn (User $official) => [
+                'id' => $official->id,
+                'name' => $official->name,
+                'nip' => $official->nip,
+                'position_name' => $official->position_name,
+                'opd_name' => $official->opd_name,
+                'is_default' => strcasecmp($official->position_name, 'Kepala BKPSDM') === 0,
+            ]);
+
+        return ApiResponse::success('Data retrieved', $officials);
     }
 
     public function imageAssets(Request $request)
@@ -228,8 +316,12 @@ class CertificateController extends Controller
             $query = TrainingEvent::query()
                 ->withCount([
                     'participants as approved_count' => fn ($q) => $q->where('completion_status', 'approved'),
-                    'participants as issued_count'   => fn ($q) => $q->whereIn('user_id', Certificate::select('user_id')->whereColumn('training_event_id', 'training_events.id')),
+                    'participants as issued_count' => fn ($q) => $q->whereIn('user_id', Certificate::select('user_id')->whereColumn('training_event_id', 'training_events.id')),
                 ])
+                // Only show events that are active or completed — scheduled/draft events
+                // cannot have approved completions yet, so excluding them reduces the
+                // result set without changing the business logic.
+                ->whereIn('status', ['active', 'completed', 'ongoing'])
                 ->latest('start_date');
 
             if ($request->user()->hasAnyRole(['fasilitator-internal', 'fasilitator-eksternal'])) {
@@ -237,26 +329,27 @@ class CertificateController extends Controller
                 if ($facilitator) {
                     $query->where(function ($q) use ($facilitator) {
                         $q->where('facilitator_id', $facilitator->id)
-                          ->orWhereHas('facilitators', fn ($fq) => $fq->where('facilitators.id', $facilitator->id));
+                            ->orWhereHas('facilitators', fn ($fq) => $fq->where('facilitators.id', $facilitator->id));
                     });
                 }
             }
 
             $events = $query->get()->map(fn ($e) => [
-                'id'                     => $e->id,
-                'uuid'                   => $e->uuid,
-                'title'                  => $e->title,
-                'start_date'             => $e->start_date?->toDateString(),
-                'status'                 => $e->status,
-                'approved_count'         => (int) $e->approved_count,
-                'issued_count'           => (int) $e->issued_count,
-                'pending_count'          => max(0, (int) $e->approved_count - (int) $e->issued_count),
-                'certificate_template_id'=> $e->certificate_template_id,
+                'id' => $e->id,
+                'uuid' => $e->uuid,
+                'title' => $e->title,
+                'start_date' => $e->start_date?->toDateString(),
+                'status' => $e->status,
+                'approved_count' => (int) $e->approved_count,
+                'issued_count' => (int) $e->issued_count,
+                'pending_count' => max(0, (int) $e->approved_count - (int) $e->issued_count),
+                'certificate_template_id' => $e->certificate_template_id,
             ]);
 
             return ApiResponse::success('OK', $events);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -275,20 +368,29 @@ class CertificateController extends Controller
                 ->where('completion_status', 'approved')
                 ->whereNotIn('user_id', $issuedUserIds)
                 ->with('user:id,name,nip,email,opd_name,organization_unit_name')
-                ->get()
-                ->map(fn ($p) => [
-                    'user_id'                => $p->user_id,
-                    'name'                   => $p->user->name,
-                    'nip'                    => $p->user->nip,
-                    'email'                  => $p->user->email,
-                    'opd_name'               => $p->user->opd_name,
-                    'organization_unit_name' => $p->user->organization_unit_name,
-                    'completed_at'           => $p->completed_at?->toDateString(),
-                ]);
+                ->get();
 
-            return ApiResponse::success('OK', $participants);
+            // Pre-load all scores in one query — avoids N+1 (1 query per participant).
+            $allScores = $this->allUserEventScores($event->id, $participants->pluck('user_id')->all());
+
+            return ApiResponse::success('OK', $participants->map(function ($p) use ($allScores) {
+                $score = $allScores->get($p->user_id);
+
+                return [
+                    'user_id' => $p->user_id,
+                    'name' => $p->user->name,
+                    'nip' => $p->user->nip,
+                    'email' => $p->user->email,
+                    'opd_name' => $p->user->opd_name,
+                    'organization_unit_name' => $p->user->organization_unit_name,
+                    'completed_at' => $p->completed_at?->toDateString(),
+                    'final_score' => $score,
+                    'predicate' => $this->scoreToPredikat($score),
+                ];
+            }));
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -296,14 +398,17 @@ class CertificateController extends Controller
     public function issuePreview(Request $request)
     {
         $request->validate([
-            'event_uuid'       => ['required', 'string', 'exists:training_events,uuid'],
-            'template_id'      => ['required', 'integer', 'exists:certificate_templates,id'],
-            'participant_ids'  => ['required', 'array', 'min:1'],
-            'participant_ids.*'=> ['integer'],
+            'event_uuid' => ['required', 'string', 'exists:training_events,uuid'],
+            'template_id' => ['required', 'integer', 'exists:certificate_templates,id'],
+            'participant_ids' => ['required', 'array', 'min:1'],
+            'participant_ids.*' => ['integer'],
         ]);
 
         try {
-            $event = TrainingEvent::where('uuid', $request->event_uuid)->firstOrFail();
+            $event = TrainingEvent::query()
+                ->with('materials:id,training_event_id,title,type,description,duration_minutes,order')
+                ->where('uuid', $request->event_uuid)
+                ->firstOrFail();
             if (! $this->canManageEvent($request, $event)) {
                 return ApiResponse::error('Forbidden', 403);
             }
@@ -324,37 +429,52 @@ class CertificateController extends Controller
             $next = Certificate::count() + 1;
             $year = now()->format('Y');
 
+            // Pre-load all scores in one query — avoids N+1 (1 query per participant).
+            $allScores = $this->allUserEventScores($event->id, $participants->pluck('user_id')->all());
+
             return ApiResponse::success('OK', [
                 'event' => [
-                    'uuid'       => $event->uuid,
-                    'title'      => $event->title,
+                    'uuid' => $event->uuid,
+                    'title' => $event->title,
                     'start_date' => $event->start_date?->toDateString(),
-                    'end_date'   => $event->end_date?->toDateString(),
+                    'end_date' => $event->end_date?->toDateString(),
+                    'materials' => $event->materials->map(fn ($material) => [
+                        'order' => $material->order,
+                        'title' => $material->title,
+                        'type' => $material->type,
+                        'description' => $material->description,
+                        'duration_minutes' => $material->duration_minutes,
+                        'learning_hours' => $material->duration_minutes ? (int) ceil($material->duration_minutes / 45) : 0,
+                    ])->values()->all(),
                 ],
                 'template' => [
-                    'id'   => $template->id,
+                    'id' => $template->id,
                     'name' => $template->name,
                 ],
-                'participants' => $participants->values()->map(function ($participant, int $index) use ($next, $year) {
-                    $number = 'CERT-CORPU-' . $year . '-' . str_pad((string) ($next + $index), 4, '0', STR_PAD_LEFT);
-                    $token  = 'preview-' . sha1($number . '|' . $participant->user_id);
+                'participants' => $participants->values()->map(function ($participant, int $index) use ($next, $year, $allScores) {
+                    $number = 'CERT-CORPU-'.$year.'-'.str_pad((string) ($next + $index), 4, '0', STR_PAD_LEFT);
+                    $token = 'preview-'.sha1($number.'|'.$participant->user_id);
+                    $score = $allScores->get($participant->user_id);
 
                     return [
-                        'user_id'                => $participant->user_id,
-                        'name'                   => $participant->user->name,
-                        'nip'                    => $participant->user->nip,
-                        'email'                  => $participant->user->email,
-                        'opd_name'               => $participant->user->opd_name,
+                        'user_id' => $participant->user_id,
+                        'name' => $participant->user->name,
+                        'nip' => $participant->user->nip,
+                        'email' => $participant->user->email,
+                        'opd_name' => $participant->user->opd_name,
                         'organization_unit_name' => $participant->user->organization_unit_name,
-                        'completed_at'           => $participant->completed_at?->toDateString(),
-                        'certificate_number'     => $number,
-                        'issued_date'            => now()->locale('id')->translatedFormat('d F Y'),
-                        'verification_url'       => url('/api/certificates/verify/' . $token),
+                        'completed_at' => $participant->completed_at?->toDateString(),
+                        'certificate_number' => $number,
+                        'issued_date' => now()->locale('id')->translatedFormat('d F Y'),
+                        'verification_url' => url('/api/certificates/verify/'.$token),
+                        'final_score' => $score,
+                        'predicate' => $this->scoreToPredikat($score),
                     ];
                 }),
             ]);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -362,10 +482,10 @@ class CertificateController extends Controller
     public function issue(Request $request)
     {
         $request->validate([
-            'event_uuid'       => ['required', 'string', 'exists:training_events,uuid'],
-            'template_id'      => ['required', 'integer', 'exists:certificate_templates,id'],
-            'participant_ids'  => ['required', 'array', 'min:1'],
-            'participant_ids.*'=> ['integer'],
+            'event_uuid' => ['required', 'string', 'exists:training_events,uuid'],
+            'template_id' => ['required', 'integer', 'exists:certificate_templates,id'],
+            'participant_ids' => ['required', 'array', 'min:1'],
+            'participant_ids.*' => ['integer'],
         ]);
 
         try {
@@ -379,7 +499,7 @@ class CertificateController extends Controller
                 return ApiResponse::error('Forbidden', 403);
             }
 
-            $year   = now()->format('Y');
+            $year = now()->format('Y');
             $issued = 0;
 
             DB::transaction(function () use ($request, $event, $template, $year, &$issued) {
@@ -387,16 +507,18 @@ class CertificateController extends Controller
                     $already = Certificate::where('user_id', $userId)
                         ->where('training_event_id', $event->id)
                         ->exists();
-                    if ($already) continue;
+                    if ($already) {
+                        continue;
+                    }
 
                     // Insert first to obtain the auto-increment id, then build the
                     // cert number from it — avoids duplicate-number races under concurrency.
                     $cert = Certificate::create([
-                        'user_id'                 => $userId,
-                        'training_event_id'        => $event->id,
-                        'certificate_template_id'  => $template->id,
-                        'certificate_number'       => (string) Str::uuid(),
-                        'issued_at'               => now(),
+                        'user_id' => $userId,
+                        'training_event_id' => $event->id,
+                        'certificate_template_id' => $template->id,
+                        'certificate_number' => (string) Str::uuid(),
+                        'issued_at' => now(),
                     ]);
                     $cert->update([
                         'certificate_number' => sprintf('CERT-CORPU-%s-%04d', $year, $cert->id),
@@ -411,6 +533,7 @@ class CertificateController extends Controller
             return ApiResponse::success("{$issued} sertifikat berhasil diterbitkan.");
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -420,7 +543,12 @@ class CertificateController extends Controller
         try {
             $certificate = Certificate::query()
                 ->where('verification_token', $token)
-                ->with(['user:id,name,nip,email,opd_name', 'event:id,uuid,title,start_date,end_date', 'template:id,name'])
+                ->with([
+                    'user:id,name,nip,opd_name',
+                    'event:id,uuid,title,start_date,end_date',
+                    'learningPath:id,uuid,title',
+                    'template:id,name',
+                ])
                 ->first();
 
             if (! $certificate) {
@@ -433,20 +561,26 @@ class CertificateController extends Controller
                 'participant' => [
                     'name' => $certificate->user?->name,
                     'nip' => $certificate->user?->nip,
-                    'email' => $certificate->user?->email,
                     'opd_name' => $certificate->user?->opd_name,
+                    // email dihapus — tidak perlu untuk verifikasi publik [H6 fix]
                 ],
                 'event' => [
-                    'title' => $certificate->event?->title,
+                    'title' => $certificate->event?->title ?? $certificate->learningPath?->title,
                     'start_date' => $certificate->event?->start_date?->toDateString(),
                     'end_date' => $certificate->event?->end_date?->toDateString(),
                 ],
+                'source' => $certificate->learning_path_id ? 'learning_path' : 'training_event',
+                'learning_path' => $certificate->learningPath ? [
+                    'uuid' => $certificate->learningPath->uuid,
+                    'title' => $certificate->learningPath->title,
+                ] : null,
                 'template' => [
                     'name' => $certificate->template?->name,
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error();
         }
     }
@@ -472,8 +606,56 @@ class CertificateController extends Controller
             return ApiResponse::success('Gambar berhasil diunggah.', $asset);
         } catch (\Throwable $e) {
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine()]);
+
             return ApiResponse::error('Gagal mengunggah gambar.');
         }
+    }
+
+    private function userEventScore(int $trainingEventId, int $userId): ?float
+    {
+        return $this->allUserEventScores($trainingEventId, [$userId])->get($userId);
+    }
+
+    /**
+     * Fetch average assessment scores for multiple users in a single query.
+     * Returns a Collection keyed by user_id with float|null values.
+     *
+     * @param  array<int>  $userIds
+     * @return Collection<int, float|null>
+     */
+    private function allUserEventScores(int $trainingEventId, array $userIds): Collection
+    {
+        if (empty($userIds)) {
+            return collect();
+        }
+
+        return DB::table('assessment_submissions as s')
+            ->join('event_assessments as a', 'a.id', '=', 's.event_assessment_id')
+            ->where('a.training_event_id', $trainingEventId)
+            ->whereIn('s.user_id', $userIds)
+            ->whereNotNull('s.score')
+            ->selectRaw('s.user_id, ROUND(AVG(s.score), 1) as avg_score')
+            ->groupBy('s.user_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->user_id => (float) $row->avg_score]);
+    }
+
+    private function scoreToPredikat(?float $score): string
+    {
+        if ($score === null) {
+            return '';
+        }
+        if ($score >= 90) {
+            return 'Sangat Baik';
+        }
+        if ($score >= 75) {
+            return 'Baik';
+        }
+        if ($score >= 60) {
+            return 'Cukup';
+        }
+
+        return 'Kurang';
     }
 
     private function canManageTemplate(Request $request, CertificateTemplate $template): bool

@@ -20,7 +20,7 @@ import api from '../../api.js';
 const MATERIAL_TYPE_ICONS  = { document: FileText, video: Video, link: Link, presentation: BookOpen };
 const MATERIAL_TYPE_LABELS = { document: 'Dokumen', video: 'Video', link: 'Tautan', presentation: 'Presentasi' };
 const MATERIAL_TYPE_ACCENTS = { document: 'emerald', video: 'crimson', link: 'grape', presentation: 'amber' };
-const EMPTY_FORM = { title: '', type: 'document', url: '', description: '', order: '' };
+const EMPTY_FORM = { title: '', type: 'document', url: '', description: '', duration_minutes: '', order: '' };
 const MAX_FILE_BYTES = 1000 * 1024 * 1024;
 
 function formatDate(d) {
@@ -90,7 +90,7 @@ function FilePreview({ src, fileName }) {
 function MaterialModal({ uuid, material, onClose, onSuccess }) {
   const [form, setForm] = useState(
     material
-      ? { title: material.title, type: material.type || 'document', url: material.url || '', description: material.description || '', order: material.order?.toString() || '' }
+      ? { title: material.title, type: material.type || 'document', url: material.url || '', description: material.description || '', duration_minutes: material.duration_minutes?.toString() || '', order: material.order?.toString() || '' }
       : EMPTY_FORM,
   );
   const [inputMode, setInputMode] = useState(material?.file_url ? 'file' : 'url');
@@ -112,6 +112,7 @@ function MaterialModal({ uuid, material, onClose, onSuccess }) {
     fd.append('title', form.title);
     fd.append('type', form.type);
     fd.append('description', form.description || '');
+    if (form.duration_minutes) fd.append('duration_minutes', parseInt(form.duration_minutes, 10));
     fd.append('order', parseInt(form.order, 10) || 1);
     if (inputMode === 'file' && selectedFile) {
       fd.append('file', selectedFile);
@@ -209,6 +210,18 @@ function MaterialModal({ uuid, material, onClose, onSuccess }) {
                   onChange={(e) => setForm((c) => ({ ...c, order: e.target.value }))}
                   placeholder="1"
                 />
+              </label>
+
+              <label className="fm-field">
+                <span>Durasi Materi (menit)</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.duration_minutes}
+                  onChange={(e) => setForm((c) => ({ ...c, duration_minutes: e.target.value }))}
+                  placeholder="Contoh: 90 (2 JP)"
+                />
+                <small>{form.duration_minutes ? `${Math.ceil(Number(form.duration_minutes) / 45)} JP` : '1 JP = 45 menit'}</small>
               </label>
             </div>
 

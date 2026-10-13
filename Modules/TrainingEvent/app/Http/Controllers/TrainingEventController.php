@@ -15,6 +15,7 @@ use Modules\TrainingEvent\Http\Requests\UpdateTrainingEventRequest;
 use Modules\TrainingEvent\Models\EventParticipant;
 use Modules\TrainingEvent\Models\TrainingEvent;
 use Modules\TrainingEvent\Services\TrainingEventService;
+use Modules\TrainingProposal\Models\TrainingProposal;
 
 class TrainingEventController extends Controller
 {
@@ -78,6 +79,16 @@ class TrainingEventController extends Controller
                     ->with('facilitators.user')
                     ->where('status', 'active')
                     ->where('end_date', '>=', now()->toDateString())
+                    ->where(function ($q) use ($user): void {
+                        $q->where('target_all_opds', true)
+                            ->orWhereHas('targetUsers', fn ($target) => $target->where('users.id', $user->id))
+                            ->orWhereHas('targetOpds', fn ($target) => $target->where('opds.id', $user->opd_id))
+                            ->orWhere(function ($legacy) {
+                                $legacy->where('target_all_opds', false)
+                                    ->whereDoesntHave('targetUsers')
+                                    ->whereDoesntHave('targetOpds');
+                            });
+                    })
                     ->withExists(['participants as is_enrolled' => fn ($q) => $q->where('user_id', $user->id)])
                     ->orderBy('start_date')
                     ->paginate((int) $request->integer('per_page', 15));
@@ -107,6 +118,7 @@ class TrainingEventController extends Controller
     {
         try {
             $data         = $request->validated();
+            $this->authorizeProposalSource($request, $data['training_proposal_id'] ?? null);
             $facilitatorIds = array_values(array_filter($data['facilitator_ids'] ?? []));
             unset($data['facilitator_ids']);
 
@@ -130,6 +142,24 @@ class TrainingEventController extends Controller
             Log::error($e->getMessage(), ['file' => $e->getFile(), 'line' => $e->getLine(), 'user_id' => auth()->id()]);
 
             return ApiResponse::error();
+        }
+    }
+
+    private function authorizeProposalSource(Request $request, ?int $proposalId): void
+    {
+        if ($request->user()->hasRole('super-admin')) {
+            return;
+        }
+
+        abort_unless($proposalId, 422, 'Event harus dibuat dari proposal pelatihan yang sudah disetujui.');
+
+        $proposal = TrainingProposal::query()->find($proposalId);
+
+        abort_if(! $proposal, 422, 'Proposal pelatihan tidak ditemukan.');
+        abort_unless($proposal->status === 'approved', 422, 'Hanya proposal yang sudah disetujui yang dapat dibuat menjadi event.');
+
+        if ($request->user()->opd_id) {
+            abort_unless((int) $proposal->opd_id === (int) $request->user()->opd_id, 403, 'Proposal ini bukan milik OPD Anda.');
         }
     }
 

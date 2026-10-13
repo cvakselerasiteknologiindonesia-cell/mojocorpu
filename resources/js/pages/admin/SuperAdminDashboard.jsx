@@ -2,10 +2,12 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Award, BookOpen, CalendarDays, CheckCircle, Coins,
-  GraduationCap, PieChart, ShoppingBag, TrendingUp, Trophy, Users,
+  AlertTriangle, BookOpen, CalendarDays, CheckCircle, Coins,
+  FileText, GraduationCap, PieChart, ShoppingBag, TrendingUp, Trophy, Users,
 } from 'lucide-react';
 import api from '../../api.js';
+
+const formatNumber = (value) => Number(value || 0).toLocaleString('id-ID');
 
 function KpiCard({ label, value, sub, icon: Icon, accent = 'var(--grape)', to }) {
   const card = (
@@ -29,15 +31,63 @@ function KpiCard({ label, value, sub, icon: Icon, accent = 'var(--grape)', to })
   return to ? <NavLink to={to} style={{ textDecoration: 'none' }}>{card}</NavLink> : card;
 }
 
+function ActionCard({ label, value, sub, icon: Icon, accent = 'var(--gold)', to, tone = 'normal' }) {
+  const body = (
+    <div
+      className="enterprise-card"
+      style={{
+        padding: 16,
+        borderLeft: `4px solid ${accent}`,
+        background: tone === 'urgent' ? 'color-mix(in srgb, var(--gold) 7%, var(--bg))' : 'var(--bg)',
+        minHeight: 112,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+        <div>
+          <p className="mono-kicker text-muted" style={{ margin: '0 0 8px', color: accent }}>{label}</p>
+          <strong style={{ display: 'block', fontSize: 30, lineHeight: 1, color: 'var(--fg)' }}>{value ?? 0}</strong>
+          <span style={{ display: 'block', marginTop: 7, fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.4 }}>{sub}</span>
+        </div>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            display: 'grid',
+            placeItems: 'center',
+            background: `color-mix(in srgb, ${accent} 12%, var(--bg))`,
+            flexShrink: 0,
+          }}
+        >
+          <Icon size={18} color={accent} />
+        </div>
+      </div>
+    </div>
+  );
+
+  return to ? <NavLink to={to} style={{ textDecoration: 'none' }}>{body}</NavLink> : body;
+}
+
 const STATUS_COLOR = {
-  submitted: { bg: 'color-mix(in srgb, #f59e0b 15%, var(--bg))', color: '#92400e' },
+  submitted: { bg: 'color-mix(in srgb, var(--gold) 15%, var(--bg))', color: 'var(--crimson)' },
   approved:  { bg: 'color-mix(in srgb, var(--emerald) 12%, var(--bg))', color: 'var(--emerald)' },
   rejected:  { bg: 'color-mix(in srgb, var(--crimson) 12%, var(--bg))', color: 'var(--crimson)' },
   ongoing:   { bg: 'color-mix(in srgb, var(--sky) 12%, var(--bg))', color: 'var(--sky)' },
   scheduled: { bg: 'color-mix(in srgb, var(--grape) 10%, var(--bg))', color: 'var(--grape)' },
   completed: { bg: 'color-mix(in srgb, var(--emerald) 12%, var(--bg))', color: 'var(--emerald)' },
-  pending:   { bg: 'color-mix(in srgb, #f59e0b 15%, var(--bg))', color: '#92400e' },
+  pending:   { bg: 'color-mix(in srgb, var(--gold) 15%, var(--bg))', color: 'var(--crimson)' },
   fulfilled: { bg: 'color-mix(in srgb, var(--emerald) 12%, var(--bg))', color: 'var(--emerald)' },
+};
+
+const STATUS_LABEL = {
+  submitted: 'menunggu',
+  approved: 'disetujui',
+  rejected: 'ditolak',
+  ongoing: 'berjalan',
+  scheduled: 'terjadwal',
+  completed: 'selesai',
+  pending: 'menunggu',
+  fulfilled: 'terpenuhi',
 };
 
 function StatusBadge({ status }) {
@@ -46,7 +96,7 @@ function StatusBadge({ status }) {
     <span style={{
       background: s.bg, color: s.color, borderRadius: 6,
       fontSize: 10, fontWeight: 700, padding: '2px 8px', textTransform: 'capitalize', flexShrink: 0,
-    }}>{status}</span>
+    }}>{STATUS_LABEL[status] || status}</span>
   );
 }
 
@@ -103,14 +153,23 @@ function EventRow({ e }) {
 }
 
 function ScorerRow({ scorer }) {
-  const rankEmoji = ['🥇', '🥈', '🥉'];
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '8px 0', borderBottom: '1px solid var(--border)',
     }}>
-      <div style={{ fontSize: 18, width: 28, textAlign: 'center', flexShrink: 0 }}>
-        {rankEmoji[scorer.rank - 1] || `#${scorer.rank}`}
+      <div style={{
+        width: 30,
+        height: 30,
+        border: '1px solid var(--border)',
+        display: 'grid',
+        placeItems: 'center',
+        color: 'var(--fg-2)',
+        fontSize: 11,
+        fontWeight: 800,
+        flexShrink: 0,
+      }}>
+        {String(scorer.rank).padStart(2, '0')}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--fg)' }}>{scorer.name}</div>
@@ -270,6 +329,7 @@ export default function SuperAdminDashboard() {
   });
 
   const d = data;
+  const kmsUnapproved = Math.max(Number(d?.kms?.total || 0) - Number(d?.kms?.approved || 0), 0);
 
   return (
     <div className="page-stack">
@@ -278,7 +338,7 @@ export default function SuperAdminDashboard() {
       <div className="page-head">
         <div>
           <p className="mono-kicker text-muted">Super Admin</p>
-          <h1>Platform Overview</h1>
+          <h1>Ringkasan Platform</h1>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-3)' }}>
             Corporate University BKPSDM Kab. Mojokerto — data diperbarui setiap 2 menit
           </p>
@@ -289,73 +349,93 @@ export default function SuperAdminDashboard() {
         <div className="resource-note" style={{ textAlign: 'center', padding: 48 }}>Memuat data platform…</div>
       ) : (
         <>
-          {/* Compact KPI strip */}
+          {/* Priority queue */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 14 }}>
+            <ActionCard
+              label="Perlu Ditinjau"
+              value={formatNumber(d?.proposals?.pending)}
+              sub="proposal pelatihan menunggu keputusan"
+              icon={AlertTriangle}
+              accent="var(--gold)"
+              to="/proposal-review"
+              tone={d?.proposals?.pending > 0 ? 'urgent' : 'normal'}
+            />
+            <ActionCard
+              label="Pesanan Toko"
+              value={formatNumber(d?.store?.pending)}
+              sub="transaksi menunggu pemenuhan"
+              icon={ShoppingBag}
+              accent="var(--crimson)"
+              to="/store"
+              tone={d?.store?.pending > 0 ? 'urgent' : 'normal'}
+            />
+            <ActionCard
+              label="KMS Belum Disetujui"
+              value={formatNumber(kmsUnapproved)}
+              sub="aset pengetahuan belum aktif"
+              icon={FileText}
+              accent="var(--sky)"
+              to="/kms-assets"
+            />
+            <ActionCard
+              label="Event Berjalan"
+              value={formatNumber(d?.events?.ongoing)}
+              sub={`${formatNumber(d?.events?.scheduled)} event sudah terjadwal`}
+              icon={CalendarDays}
+              accent="var(--emerald)"
+              to="/training-events"
+            />
+          </div>
+
+          {/* Core KPI strip */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(176px, 1fr))', gap: 10, marginBottom: 14 }}>
             <KpiCard
-              label="Pengguna"
-              value={d?.users?.total?.toLocaleString()}
-              sub={`${d?.users?.active} aktif · ${d?.users?.asn} ASN`}
+              label="Pengguna Aktif"
+              value={formatNumber(d?.users?.active)}
+              sub={`${formatNumber(d?.users?.asn)} ASN dari ${formatNumber(d?.users?.total)} pengguna`}
               icon={Users} accent="var(--sky)" to="/users"
             />
             <KpiCard
-              label="Event"
-              value={d?.events?.total?.toLocaleString()}
-              sub={`${d?.events?.ongoing} berjalan · ${d?.events?.scheduled} terjadwal`}
+              label="Total Event"
+              value={formatNumber(d?.events?.total)}
+              sub={`${formatNumber(d?.events?.completed)} selesai`}
               icon={CalendarDays} accent="var(--emerald)" to="/training-events"
             />
             <KpiCard
-              label="Perlu Review"
-              value={d?.proposals?.pending?.toLocaleString()}
-              sub={`${d?.proposals?.approved} approved · ${d?.proposals?.rejected} rejected`}
-              icon={BookOpen} accent="#d97706" to="/proposal-review"
-            />
-            <KpiCard
-              label="Kompletasi"
+              label="Kompletasi Peserta"
               value={`${d?.participants?.rate ?? 0}%`}
-              sub={`${d?.participants?.completed?.toLocaleString()} dari ${d?.participants?.total?.toLocaleString()} peserta`}
+              sub={`${formatNumber(d?.participants?.completed)} dari ${formatNumber(d?.participants?.total)} peserta`}
               icon={CheckCircle} accent="var(--emerald)"
             />
             <KpiCard
               label="Nilai Rata-rata"
               value={d?.assessments?.avg_score ?? '—'}
-              sub={`${d?.assessments?.passed?.toLocaleString()} lulus asesmen`}
+              sub={`${formatNumber(d?.assessments?.passed)} lulus asesmen`}
               icon={TrendingUp} accent="var(--sky)"
             />
             <KpiCard
               label="Token Aktif"
-              value={d?.wallet?.total_balance?.toLocaleString()}
-              sub={`${d?.wallet?.total_credited?.toLocaleString()} issued`}
-              icon={Coins} accent="#d97706" to="/wallet"
-            />
-            <KpiCard
-              label="Store"
-              value={d?.store?.total?.toLocaleString()}
-              sub={`${d?.store?.pending} pending · ${d?.store?.fulfilled} fulfilled`}
-              icon={ShoppingBag} accent="var(--crimson)" to="/store"
-            />
-            <KpiCard
-              label="Badge"
-              value={d?.badges?.total_awarded?.toLocaleString()}
-              sub={`${d?.kms?.approved?.toLocaleString()} KMS approved`}
-              icon={Award} accent="var(--grape)" to="/achievements"
+              value={formatNumber(d?.wallet?.total_balance)}
+              sub={`${formatNumber(d?.wallet?.total_credited)} diterbitkan`}
+              icon={Coins} accent="var(--gold)" to="/wallet"
             />
           </div>
 
           {/* Compact charts */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(238px, 1fr))', gap: 14, marginBottom: 14 }}>
-            <ChartCard eyebrow="Pipeline" title="Proposal" icon={PieChart} accent="var(--grape)">
+            <ChartCard eyebrow="Alur Usulan" title="Status Usulan" icon={PieChart} accent="var(--grape)">
               <DonutChart
                 centerLabel="proposal"
                 centerValue={d?.proposals?.total ?? 0}
                 items={[
-                  { label: 'Menunggu', value: d?.proposals?.pending ?? 0, color: '#d97706' },
+                  { label: 'Menunggu', value: d?.proposals?.pending ?? 0, color: 'var(--gold)' },
                   { label: 'Disetujui', value: d?.proposals?.approved ?? 0, color: 'var(--emerald)' },
                   { label: 'Ditolak', value: d?.proposals?.rejected ?? 0, color: 'var(--crimson)' },
                 ]}
               />
             </ChartCard>
 
-            <ChartCard eyebrow="Training" title="Event" icon={CalendarDays} accent="var(--emerald)">
+            <ChartCard eyebrow="Pelatihan" title="Status Event" icon={CalendarDays} accent="var(--emerald)">
               <HorizontalBars
                 items={[
                   { label: 'Berjalan', value: d?.events?.ongoing ?? 0, color: 'var(--sky)' },
@@ -365,7 +445,7 @@ export default function SuperAdminDashboard() {
               />
             </ChartCard>
 
-            <ChartCard eyebrow="Progress" title="Peserta" icon={GraduationCap} accent="var(--emerald)">
+            <ChartCard eyebrow="Kemajuan" title="Peserta" icon={GraduationCap} accent="var(--emerald)">
               <CompletionChart
                 completed={d?.participants?.completed ?? 0}
                 total={d?.participants?.total ?? 0}
@@ -373,11 +453,11 @@ export default function SuperAdminDashboard() {
               />
             </ChartCard>
 
-            <ChartCard eyebrow="Token" title="Wallet" icon={Coins} accent="#d97706">
+            <ChartCard eyebrow="Token" title="Dompet Belajar" icon={Coins} accent="var(--gold)">
               <HorizontalBars
                 items={[
                   { label: 'Diterbitkan', value: d?.wallet?.total_credited ?? 0, color: 'var(--emerald)' },
-                  { label: 'Digunakan', value: d?.wallet?.total_debited ?? 0, color: '#d97706' },
+                  { label: 'Digunakan', value: d?.wallet?.total_debited ?? 0, color: 'var(--gold)' },
                   { label: 'Saldo Aktif', value: d?.wallet?.total_balance ?? 0, color: 'var(--grape)' },
                 ]}
               />
@@ -387,15 +467,15 @@ export default function SuperAdminDashboard() {
           {/* Main content grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
 
-            {/* Pending Proposals */}
+            {/* Pending proposals */}
             <section className="enterprise-card" style={{ padding: 16 }}>
               <div className="section-title">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <BookOpen size={16} color="var(--sky)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Action Queue</p>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Perlu Ditindaklanjuti</p>
                     <h2 style={{ margin: 0 }}>
-                      Proposal Review
+                      Tinjau Usulan
                       {d?.proposals?.pending > 0 && (
                         <span className="badge-active" style={{ marginLeft: 8, fontSize: 11 }}>
                           {d.proposals.pending}
@@ -405,7 +485,7 @@ export default function SuperAdminDashboard() {
                   </div>
                 </div>
                 <NavLink to="/proposal-review" style={{ fontSize: 12, color: 'var(--grape)', fontWeight: 600, textDecoration: 'none' }}>
-                  Semua
+                  Lihat semua
                 </NavLink>
               </div>
               {d?.proposals?.recent?.length > 0 ? (
@@ -421,12 +501,12 @@ export default function SuperAdminDashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <CalendarDays size={16} color="var(--emerald)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Training</p>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Pelatihan</p>
                     <h2 style={{ margin: 0 }}>Event Terbaru</h2>
                   </div>
                 </div>
                 <NavLink to="/training-events" style={{ fontSize: 12, color: 'var(--grape)', fontWeight: 600, textDecoration: 'none' }}>
-                  Semua
+                  Lihat semua
                 </NavLink>
               </div>
               {d?.events?.recent?.length > 0 ? (
@@ -439,14 +519,14 @@ export default function SuperAdminDashboard() {
             <section className="enterprise-card" style={{ padding: 16 }}>
               <div className="section-title">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Trophy size={16} color="#d97706" />
+                  <Trophy size={16} color="var(--gold)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Leaderboard</p>
-                    <h2 style={{ margin: 0 }}>Top Pelajar</h2>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Capaian Belajar</p>
+                    <h2 style={{ margin: 0 }}>Nilai Tertinggi</h2>
                   </div>
                 </div>
                 <NavLink to="/leaderboard" style={{ fontSize: 12, color: 'var(--grape)', fontWeight: 600, textDecoration: 'none' }}>
-                  Semua
+                  Lihat semua
                 </NavLink>
               </div>
               {d?.top_scorers?.length > 0 ? (
@@ -461,7 +541,7 @@ export default function SuperAdminDashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <TrendingUp size={16} color="var(--grape)" />
                   <div>
-                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Snapshot</p>
+                    <p className="mono-kicker text-muted" style={{ margin: 0 }}>Ringkasan Data</p>
                     <h2 style={{ margin: 0 }}>Ringkasan</h2>
                   </div>
                 </div>
@@ -470,10 +550,10 @@ export default function SuperAdminDashboard() {
               <StatRow label="ASN" value={d?.users?.asn} />
               <StatRow label="Fasilitator" value={d?.users?.facilitators} />
               <StatRow label="Admin OPD" value={d?.users?.admins} />
-              <StatRow label="KMS Assets" value={d?.kms?.total} />
+              <StatRow label="Aset KMS" value={d?.kms?.total} />
               <StatRow label="KMS Disetujui" value={d?.kms?.approved} accent="var(--emerald)" />
               <StatRow label="Token Digunakan" value={d?.wallet?.total_debited?.toLocaleString()} />
-              <StatRow label="Store Terpenuhi" value={d?.store?.fulfilled} accent="var(--emerald)" />
+              <StatRow label="Pesanan Terpenuhi" value={d?.store?.fulfilled} accent="var(--emerald)" />
             </section>
           </div>
         </>

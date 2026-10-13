@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { safe } from '../utils/sanitize.js';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, UserRound } from 'lucide-react';
@@ -68,7 +69,7 @@ export default function PublicBlogPost() {
               {post.tags.map((tag) => <span key={tag}>#{tag}</span>)}
             </div>
           )}
-          <div className="blog-body" dangerouslySetInnerHTML={{ __html: post.body }} />
+          <div className="blog-body" dangerouslySetInnerHTML={{ __html: safe(post.body) }} />
         </article>
       )}
     </main>

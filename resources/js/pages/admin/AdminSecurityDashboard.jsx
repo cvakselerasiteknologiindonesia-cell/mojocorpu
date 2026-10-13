@@ -31,10 +31,10 @@ import api from '../../api.js';
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const SEVERITY_META = {
-  low:      { label: 'Low',      color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-  medium:   { label: 'Medium',   color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  high:     { label: 'High',     color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-  critical: { label: 'Critical', color: '#7c3aed', bg: '#faf5ff', border: '#e9d5ff' },
+  low:      { label: 'Low',      color: 'var(--emerald)', bg: 'color-mix(in srgb, var(--emerald) 10%, var(--bg))', border: 'color-mix(in srgb, var(--emerald) 25%, var(--bg))' },
+  medium:   { label: 'Medium',   color: 'var(--gold)',    bg: 'color-mix(in srgb, var(--gold) 12%, var(--bg))',    border: 'color-mix(in srgb, var(--gold) 30%, var(--bg))' },
+  high:     { label: 'High',     color: 'var(--crimson)', bg: 'color-mix(in srgb, var(--crimson) 10%, var(--bg))', border: 'color-mix(in srgb, var(--crimson) 25%, var(--bg))' },
+  critical: { label: 'Critical', color: 'var(--grape)',   bg: 'color-mix(in srgb, var(--grape) 10%, var(--bg))',  border: 'color-mix(in srgb, var(--grape) 25%, var(--bg))' },
 };
 
 const TYPE_META = {
@@ -45,16 +45,16 @@ const TYPE_META = {
 };
 
 const ATTACK_TYPE_META = {
-  sql_injection:      { label: 'SQL Injection',      Icon: Database,    color: '#dc2626' },
-  xss_attempt:        { label: 'XSS Attempt',        Icon: Bug,         color: '#d97706' },
-  path_traversal:     { label: 'Path Traversal',     Icon: FolderSearch, color: '#dc2626' },
-  command_injection:  { label: 'Command Injection',  Icon: Terminal,    color: '#7c3aed' },
-  null_byte:          { label: 'Null Byte',          Icon: Code,        color: '#dc2626' },
-  nosql_injection:    { label: 'NoSQL Injection',    Icon: Filter,      color: '#dc2626' },
-  ldap_injection:     { label: 'LDAP Injection',     Icon: Globe,       color: '#d97706' },
-  ssrf_attempt:       { label: 'SSRF Attempt',       Icon: Globe,       color: '#dc2626' },
-  scanner_detected:   { label: 'Scanner Detected',   Icon: Skull,       color: '#7c3aed' },
-  enumeration_404:    { label: '404 Enumeration',    Icon: FileQuestion, color: '#16a34a' },
+  sql_injection:      { label: 'SQL Injection',      Icon: Database,    color: 'var(--crimson)' },
+  xss_attempt:        { label: 'XSS Attempt',        Icon: Bug,         color: 'var(--gold)' },
+  path_traversal:     { label: 'Path Traversal',     Icon: FolderSearch, color: 'var(--crimson)' },
+  command_injection:  { label: 'Command Injection',  Icon: Terminal,    color: 'var(--grape)' },
+  null_byte:          { label: 'Null Byte',          Icon: Code,        color: 'var(--crimson)' },
+  nosql_injection:    { label: 'NoSQL Injection',    Icon: Filter,      color: 'var(--crimson)' },
+  ldap_injection:     { label: 'LDAP Injection',     Icon: Globe,       color: 'var(--gold)' },
+  ssrf_attempt:       { label: 'SSRF Attempt',       Icon: Globe,       color: 'var(--crimson)' },
+  scanner_detected:   { label: 'Scanner Detected',   Icon: Skull,       color: 'var(--grape)' },
+  enumeration_404:    { label: '404 Enumeration',    Icon: FileQuestion, color: 'var(--emerald)' },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -358,8 +358,8 @@ function AttemptsTab() {
                 <td style={{ fontSize: 12 }}>{a.user?.name || '—'}</td>
                 <td>
                   {a.success
-                    ? <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 6px', borderRadius: 4 }}>Success</span>
-                    : <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '2px 6px', borderRadius: 4 }}>Failed</span>}
+                    ? <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--emerald)', background: 'color-mix(in srgb, var(--emerald) 10%, var(--bg))', border: '1px solid color-mix(in srgb, var(--emerald) 25%, var(--bg))', padding: '2px 6px', borderRadius: 4 }}>Success</span>
+                    : <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--crimson)', background: 'color-mix(in srgb, var(--crimson) 10%, var(--bg))', border: '1px solid color-mix(in srgb, var(--crimson) 25%, var(--bg))', padding: '2px 6px', borderRadius: 4 }}>Failed</span>}
                 </td>
                 <td style={{ fontSize: 11, color: 'var(--fg-3)' }}>{a.failure_reason?.replace(/_/g, ' ') || '—'}</td>
                 <td style={{ fontSize: 11, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>{timeAgo(a.created_at)}</td>
@@ -655,23 +655,23 @@ export default function AdminSecurityDashboard({ session }) {
               <p className="sec-kpi-sub">login attempts</p>
             </div>
             <div className="enterprise-card sec-kpi-card">
-              <p className="mono-kicker text-muted" style={{ color: '#dc2626' }}>Failed 24h</p>
-              <p className="sec-kpi-val" style={{ color: '#dc2626' }}>{kpis.failed_24h ?? 0}</p>
+              <p className="mono-kicker text-muted" style={{ color: 'var(--crimson)' }}>Failed 24h</p>
+              <p className="sec-kpi-val" style={{ color: 'var(--crimson)' }}>{kpis.failed_24h ?? 0}</p>
               <p className="sec-kpi-sub">last 24 hours</p>
             </div>
             <div className="enterprise-card sec-kpi-card">
-              <p className="mono-kicker text-muted" style={{ color: '#7c3aed' }}>Active Threats</p>
-              <p className="sec-kpi-val" style={{ color: '#7c3aed' }}>{kpis.active_threats ?? 0}</p>
+              <p className="mono-kicker text-muted" style={{ color: 'var(--grape)' }}>Active Threats</p>
+              <p className="sec-kpi-val" style={{ color: 'var(--grape)' }}>{kpis.active_threats ?? 0}</p>
               <p className="sec-kpi-sub">{kpis.critical_events ?? 0} critical</p>
             </div>
             <div className="enterprise-card sec-kpi-card">
-              <p className="mono-kicker text-muted" style={{ color: '#d97706' }}>Blocked IPs</p>
-              <p className="sec-kpi-val" style={{ color: '#d97706' }}>{kpis.blocked_ips ?? 0}</p>
+              <p className="mono-kicker text-muted" style={{ color: 'var(--gold)' }}>Blocked IPs</p>
+              <p className="sec-kpi-val" style={{ color: 'var(--gold)' }}>{kpis.blocked_ips ?? 0}</p>
               <p className="sec-kpi-sub">currently active</p>
             </div>
             <div className="enterprise-card sec-kpi-card">
-              <p className="mono-kicker text-muted" style={{ color: '#0891b2' }}>Attacks Today</p>
-              <p className="sec-kpi-val" style={{ color: '#0891b2' }}>{kpis.attacks_today ?? 0}</p>
+              <p className="mono-kicker text-muted" style={{ color: 'var(--sky)' }}>Attacks Today</p>
+              <p className="sec-kpi-val" style={{ color: 'var(--sky)' }}>{kpis.attacks_today ?? 0}</p>
               <p className="sec-kpi-sub">attack patterns</p>
             </div>
           </div>

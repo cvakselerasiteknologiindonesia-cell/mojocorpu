@@ -13,9 +13,9 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import api from '../../api.js';
+import { loadXlsx } from '../../utils/xlsx.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -276,7 +276,8 @@ function ExcelTab({ uuid, onImportDone }) {
   const [parseError, setParseError] = useState('');
   const [result, setResult] = useState(null);
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
       ['NIP', 'Nama (opsional)'],
@@ -290,8 +291,9 @@ function ExcelTab({ uuid, onImportDone }) {
     if (!f) return;
     setParseError(''); setRows(null); setResult(null);
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await loadXlsx();
         const wb  = XLSX.read(ev.target.result, { type: 'array' });
         const ws  = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
