@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -n \"color\\\\|#[0-9a-fA-F]\\\\{3,6\\\\}\\\\|rgb\\\\|rgba\\\\|hsl\" /Applications/MAMP/htdocs/corporateuniversity-app/public/corpu_lms.html)"
-    ]
-  }
-}

@@ -7,7 +7,7 @@
 .phpactor.json
 .phpunit.result.cache
 /.codex
-/.claude/settings.local.json
+/.claude/
 /.cursor/
 /.idea
 /.nova
