@@ -10,7 +10,7 @@ class LearningPathSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::where('email', 'admin@mojokertokab.go.id')->first();
+        $admin = User::whereIn('email', ['admin@mojokertokab.go.id', 'superadmin@demo.test'])->first();
         $createdBy = $admin?->id ?? User::first()->id;
 
         $paths = [

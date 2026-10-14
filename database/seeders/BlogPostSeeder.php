@@ -13,7 +13,7 @@ class BlogPostSeeder extends Seeder
 {
     public function run(): void
     {
-        $author = User::query()->where('email', 'admin@mojokertokab.go.id')->first()
+        $author = User::query()->whereIn('email', ['admin@mojokertokab.go.id', 'superadmin@demo.test'])->first()
             ?? User::query()->first()
             ?? User::query()->create([
                 'name' => 'CorpU BKPSDM Editor',

@@ -1,40 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../api.js';
+import demoRoleAccounts from '../data/demoAccounts.js';
 
-const DEMO_ACCOUNTS = [
-  {
-    role: 'Super Admin',
-    identifier: 'admin@mojokertokab.go.id',
-    password: 'password',
-  },
-  {
-    role: 'Admin OPD',
-    identifier: 'admin.opd@mojokertokab.go.id',
-    password: 'password',
-  },
-  {
-    role: 'ASN',
-    identifier: 'budi@mojokertokab.go.id',
-    password: 'password',
-  },
-  {
-    role: 'Fasilitator Internal',
-    identifier: 'siti.fasilitator@mojokertokab.go.id',
-    password: 'password',
-  },
-  {
-    role: 'Fasilitator Eksternal',
-    identifier: 'external.fasilitator@example.com',
-    password: 'password',
-  },
-];
+const DEMO_ACCOUNTS = demoRoleAccounts.map((account) => ({
+  role: account.label,
+  identifier: account.identifier,
+  password: account.password,
+}));
 
 export default function LoginPage({ onLogin }) {
   const initialSsoUnavailable = useMemo(
     () => new URLSearchParams(window.location.search).get('sso_unavailable') === '1',
     [],
   );
-  const [form, setForm] = useState({ identifier: 'admin@mojokertokab.go.id', password: 'password' });
+  const [form, setForm] = useState({ identifier: DEMO_ACCOUNTS[0].identifier, password: DEMO_ACCOUNTS[0].password });
   const [loading, setLoading] = useState(false);
   const [ssoUnavailable, setSsoUnavailable] = useState(initialSsoUnavailable);
   const [error, setError] = useState(
@@ -109,6 +88,65 @@ export default function LoginPage({ onLogin }) {
 
       .text-primary {
         color: #c42007 !important;
+      }
+
+      .demo-account-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .5rem;
+      }
+
+      .demo-account-btn {
+        border: 1px solid #ece5e3;
+        background: #fff;
+        border-radius: .55rem;
+        padding: .55rem .65rem;
+        color: #221816;
+        text-align: left;
+        transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+      }
+
+      .demo-account-btn:hover,
+      .demo-account-btn.active {
+        border-color: rgba(196, 32, 7, .55);
+        box-shadow: 0 8px 18px rgba(34, 24, 22, .08);
+      }
+
+      .demo-account-btn.active {
+        background: #fff7f5;
+      }
+
+      .demo-account-role {
+        display: block;
+        font-size: .73rem;
+        font-weight: 700;
+        line-height: 1.15;
+      }
+
+      .demo-account-email {
+        display: block;
+        margin-top: .18rem;
+        font-size: .68rem;
+        line-height: 1.2;
+        color: #756966;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .demo-password-note {
+        border: 1px dashed #ead7d2;
+        background: #fffaf9;
+        border-radius: .55rem;
+        padding: .55rem .7rem;
+        color: #5c514e;
+        font-size: .76rem;
+      }
+
+      @media (max-width: 420px) {
+        .demo-account-grid {
+          grid-template-columns: 1fr;
+        }
       }
     `;
     document.head.appendChild(brandButtonStyle);
@@ -251,10 +289,13 @@ export default function LoginPage({ onLogin }) {
                     </form>
 
                     <div className="form-group mb-3">
-                      <label className="form-label" htmlFor="demoAccount">Demo akun sesuai role</label>
+                      <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <label className="form-label mb-0" htmlFor="demoAccount">Demo akun sesuai seeder</label>
+                        <span className="badge bg-light text-dark border">password: password</span>
+                      </div>
                       <select
                         id="demoAccount"
-                        className="form-select form-select-sm"
+                        className="form-select form-select-sm mb-2"
                         value={form.identifier}
                         onChange={(event) => {
                           const account = DEMO_ACCOUNTS.find((item) => item.identifier === event.target.value);
@@ -267,6 +308,23 @@ export default function LoginPage({ onLogin }) {
                           </option>
                         ))}
                       </select>
+                      <div className="demo-account-grid" aria-label="Pilih akun demo">
+                        {DEMO_ACCOUNTS.map((account) => (
+                          <button
+                            key={account.identifier}
+                            type="button"
+                            className={`demo-account-btn${form.identifier === account.identifier ? ' active' : ''}`}
+                            onClick={() => useDemoAccount(account)}
+                            title={`${account.role} - ${account.identifier}`}
+                          >
+                            <span className="demo-account-role">{account.role}</span>
+                            <span className="demo-account-email">{account.identifier}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="demo-password-note mt-2">
+                        Pilih role untuk mengisi NIP/email dan password otomatis.
+                      </div>
                     </div>
 
                     <div className="d-grid">
